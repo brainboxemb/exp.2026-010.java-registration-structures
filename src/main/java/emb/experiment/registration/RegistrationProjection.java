@@ -256,10 +256,18 @@ public final class RegistrationProjection {
     public int visitAfter(long afterSequence, int limit, RowVisitor visitor) {
         if (afterSequence < 0 || limit < 0 || visitor == null)
             throw new IllegalArgumentException("invalid display query");
+        // Accepted ADD sequences are strictly increasing: page access is O(log N + limit).
+        int low = 0;
+        int high = size;
+        while (low < high) {
+            int middle = (low + high) >>> 1;
+            if (rows[middle].sequence <= afterSequence) low = middle + 1;
+            else high = middle;
+        }
+
         int visited = 0;
-        for (int i = 0; i < size && visited < limit; i++) {
+        for (int i = low; i < size && visited < limit; i++) {
             Row row = rows[i];
-            if (row.sequence <= afterSequence) continue;
             visitor.accept(row.sequence, row.id, row.passage, row.elapsed,
                     row.valid, row.valid && row.elapsed != MISSING ? ranking.rank(row.elapsed) : 0);
             visited++;
