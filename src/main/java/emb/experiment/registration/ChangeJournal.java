@@ -15,6 +15,8 @@ public final class ChangeJournal {
                     long mutationSequence, long affectedAddSequence, boolean rankingInvalidated);
     }
 
+    private static final Kind[] KINDS = Kind.values();
+
     private final long[] mutationSequences;
     private final long[] affectedSequences;
     private final int[] registrationIds;
@@ -67,7 +69,7 @@ public final class ChangeJournal {
         int count = 0;
         for (long revision = afterRevision + 1; revision <= latestRevision && count < limit; revision++) {
             int at = (int) ((revision - 1) % kinds.length);
-            visitor.accept(revision, Kind.values()[kinds[at]], registrationIds[at],
+            visitor.accept(revision, KINDS[kinds[at]], registrationIds[at],
                     mutationSequences[at], affectedSequences[at], rankingInvalidated[at]);
             count++;
         }
