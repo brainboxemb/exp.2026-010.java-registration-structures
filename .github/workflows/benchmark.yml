@@ -1,0 +1,50 @@
+name: Diagnostic benchmarks
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/benchmark.yml
+
+jobs:
+  desktop-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Compile and test before measuring
+        run: mvn -B verify
+      - name: Warm-JVM and capacity diagnostics
+        run: |
+          set -euo pipefail
+          java -cp target/classes emb.experiment.registration.DiagnosticBenchmark > diagnostic.csv
+          cat diagnostic.csv
+      - name: Fresh-process startup and first-page diagnostic
+        run: |
+          set -euo pipefail
+          echo "mode,population,sample,wall_seconds,max_rss_kb" > startup.csv
+          : > startup-details.txt
+          for mode in REBUILD SORTED_ARRAY; do
+            for n in 500 1000 5000; do
+              for sample in 1 2 3 4 5; do
+                /usr/bin/time -f '%e,%M' -o /tmp/probe-time.txt \
+                  java -cp target/classes emb.experiment.registration.StartupProbe "$mode" "$n" >> startup-details.txt
+                IFS=, read -r wall rss < /tmp/probe-time.txt
+                printf '%s,%s,%s,%s,%s\n' "$mode" "$n" "$sample" "$wall" "$rss" >> startup.csv
+              done
+            done
+          done
+          cat startup.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experiment-010-desktop-diagnostics
+          path: |
+            diagnostic.csv
+            startup.csv
+            startup-details.txt
+          retention-days: 30
