@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - .github/workflows/benchmark.yml
+      - src/main/java/emb/experiment/registration/**
+      - pom.xml
 
 jobs:
   desktop-diagnostic:
