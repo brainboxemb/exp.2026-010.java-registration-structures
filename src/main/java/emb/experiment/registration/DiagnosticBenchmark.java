@@ -118,7 +118,7 @@ public final class DiagnosticBenchmark {
     }
 
     private static Measurement run(RegistrationProjection.RankingMode mode, int n,
-                                   Event[] events, Meter meter) {
+                                   Event[] events, Meter meter, int pageEvery) {
         RegistrationProjection p = initialized(mode, n);
         Visitor visitor = new Visitor();
         int matchedRevs = 0;
@@ -133,7 +133,7 @@ public final class DiagnosticBenchmark {
                 case 3: p.deleteStart(e.id); break;
                 default: throw new AssertionError();
             }
-            if ((i & 15) == 15) {
+            if (pageEvery > 0 && (i + 1) % pageEvery == 0) {
                 // Query the same bounded chronological window for every mode.
                 p.visitAfter(n / 2L, 32, visitor);
             }
@@ -232,8 +232,12 @@ public final class DiagnosticBenchmark {
                 if (n < 1) throw new IllegalArgumentException("population must be > 0");
                 report("initial_fill", mode, n, n, () -> fill(mode, n, meter));
                 Event[] events = workload(n);
-                report("mixed_mutation_and_page32", mode, n, OPERATIONS,
-                        () -> run(mode, n, events, meter));
+                report("mutation_only", mode, n, OPERATIONS,
+                        () -> run(mode, n, events, meter, 0));
+                report("page32_every_16_mutations", mode, n, OPERATIONS,
+                        () -> run(mode, n, events, meter, 16));
+                report("page32_every_mutation", mode, n, OPERATIONS,
+                        () -> run(mode, n, events, meter, 1));
             }
         }
         System.out.println("# blackhole=" + escape);
