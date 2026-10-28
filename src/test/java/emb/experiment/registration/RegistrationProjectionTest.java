@@ -25,14 +25,14 @@ final class RegistrationProjectionTest {
             assertTrue(snapshot(p).get(1).endsWith(":true:1"));
             assertTrue(snapshot(p).get(2).endsWith(":true:3"));
             assertTrue(p.revoke(4, 1, 2000));
-            assertFalse(p.revoke(5, 1, 2000) && p.size() != 3);
+            assertTrue(p.revoke(5, 1, 2000));
             assertEquals(3, p.size());
             assertTrue(snapshot(p).get(1).endsWith(":false:0"));
             assertTrue(p.deleteStart(1));
             assertEquals(0, p.rankableCount());
             assertTrue(p.setStart(1, 2500));
             assertEquals(1, p.rankableCount());
-            assertEquals(1, p.lastRevokeSequence());
+            assertEquals(5, p.lastRevokeSequence());
         }
     }
 
