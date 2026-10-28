@@ -139,6 +139,7 @@ public final class RegistrationProjection {
     private int size;
     private int rowGrowthEvents;
     private final Ranking ranking;
+    private final ChangeJournal changes;
     private final Map<Integer, Long> stageStarts = new HashMap<Integer, Long>(1024);
     private long stateRevision;
     private long rankingRevision;
@@ -146,8 +147,13 @@ public final class RegistrationProjection {
     private long lastRevokeSequence;
 
     public RegistrationProjection(RankingMode mode, int initialCapacity) {
+        this(mode, initialCapacity, 256);
+    }
+
+    public RegistrationProjection(RankingMode mode, int initialCapacity, int changeHistoryCapacity) {
         if (mode == null || initialCapacity < 1)
             throw new IllegalArgumentException("mode and positive initialCapacity required");
+        changes = new ChangeJournal(changeHistoryCapacity);
         rows = new Row[initialCapacity];
         ranking = mode == RankingMode.REBUILD
                 ? new RebuildRanking(initialCapacity)
@@ -163,12 +169,15 @@ public final class RegistrationProjection {
         }
         long elapsed = elapsed(id, passageMillis);
         rows[size++] = new Row(sequence, id, passageMillis, elapsed);
-        if (elapsed != MISSING) {
+        boolean invalidatesRanking = elapsed != MISSING;
+        if (invalidatesRanking) {
             ranking.add(elapsed);
             rankingRevision++;
         }
         lastMutationSequence = sequence;
         stateRevision++;
+        changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
+                sequence, sequence, invalidatesRanking);
         return true;
     }
 
@@ -180,13 +189,16 @@ public final class RegistrationProjection {
             Row row = rows[i];
             if (row.valid && row.id == id && row.passage == passageMillis) {
                 row.valid = false;
-                if (row.elapsed != MISSING) {
+                boolean invalidatesRanking = row.elapsed != MISSING;
+                if (invalidatesRanking) {
                     ranking.remove(row.elapsed);
                     rankingRevision++;
                 }
                 lastMutationSequence = sequence;
                 lastRevokeSequence = sequence;
                 stateRevision++;
+                changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
+                        sequence, row.sequence, invalidatesRanking);
                 return true;
             }
         }
@@ -197,19 +209,23 @@ public final class RegistrationProjection {
         if (startEpochMillis < 0) throw new IllegalArgumentException("start must be UTC epoch ms");
         Long previous = stageStarts.put(id, startEpochMillis);
         if (previous != null && previous.longValue() == startEpochMillis) return false;
-        updateRowsForStart(id);
+        boolean invalidatesRanking = updateRowsForStart(id);
         stateRevision++;
+        changes.record(stateRevision, ChangeJournal.Kind.START_SET, id,
+                0L, 0L, invalidatesRanking);
         return true;
     }
 
     public boolean deleteStart(int id) {
         if (stageStarts.remove(id) == null) return false;
-        updateRowsForStart(id);
+        boolean invalidatesRanking = updateRowsForStart(id);
         stateRevision++;
+        changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id,
+                0L, 0L, invalidatesRanking);
         return true;
     }
 
-    private void updateRowsForStart(int id) {
+    private boolean updateRowsForStart(int id) {
         boolean rankingChanged = false;
         for (int i = 0; i < size; i++) {
             Row row = rows[i];
@@ -227,6 +243,7 @@ public final class RegistrationProjection {
             }
         }
         if (rankingChanged) rankingRevision++;
+        return rankingChanged;
     }
 
     private long elapsed(int id, long passageMillis) {
@@ -249,6 +266,13 @@ public final class RegistrationProjection {
         }
         return visited;
     }
+
+    /** Replay bounded display/change deltas; a stale cursor throws HistoryExpiredException. */
+    public int visitChangesAfter(long revision, int limit, ChangeJournal.Visitor visitor) {
+        return changes.visitAfter(revision, limit, visitor);
+    }
+
+    public long oldestUsableChangeCursor() { return changes.oldestUsableCursor(); }
 
     public int size() { return size; }
     public int rankableCount() { return ranking.size(); }
