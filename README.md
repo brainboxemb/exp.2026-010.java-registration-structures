@@ -17,7 +17,10 @@ Two interchangeable ranking structures:
 
 Both models retain chronological ADD rows, resolve REV newest-first using exact
 (registration ID, UTC passage time), apply stage starts, calculate competition ranks
-with ties (1, 1, 3), and provide bounded sequence-based display visits.
+with ties (1, 1, 3), and provide bounded sequence-based display visits (binary-search cursor access,
+O(log N + page size)). A preallocated bounded change journal exposes ordered
+ADD/REV/start-change deltas, indicates when rank re-query is needed, and explicitly
+rejects expired change cursors.
 
 The first version deliberately uses absolute UTC epoch milliseconds for starts and
 passages; it does not recreate production's compact/time-only stage start rules.
@@ -30,7 +33,8 @@ java -cp target/classes emb.experiment.registration.DiagnosticBenchmark 500
 ```
 
 Tests include an **independent counting oracle**, deterministic ADD/REV/start workloads,
-display paging, capacity growth over 512 rows and a 5,000-row case.
+display paging, journal overflow/resynchronization, capacity growth over 512
+rows and a 5,000-row case.
 
 See [BENCHMARK.md](BENCHMARK.md) for the workload definitions, fresh-JVM probe,
 allocation/growth measurement, limitations and unfinished architecture comparisons.
