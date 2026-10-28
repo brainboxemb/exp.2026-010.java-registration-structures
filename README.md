@@ -1,41 +1,37 @@
 # Experiment 010 — Java registration structures
 
-Standalone Java 8-compatible experimental implementation for Event Timing registration-state architecture.
+Standalone Java 8-compatible experiment for Event Timing registration-state architecture.
 
-## Boundary
+The experiment does **not** modify production. The production reference is
+`brainboxemb/2026-010-02.java.timing-point-application`. The separate Raspberry Pi
+image project owns the OS build; this repository owns experimental workloads, tests,
+performance diagnostics and eventual target evidence.
 
-This experiment does **not** modify production. Its reference is
-`brainboxemb/2026-010-02.java.timing-point-application`.
-The Raspberry Pi image is owned by a separate repository; this repo owns the
-workloads, correctness evidence, benchmarks and eventual target-hardware verification.
+## Current implementation
 
-## Foundation (first experimental slice)
+Two interchangeable ranking structures:
 
-Two interchangeable, intentionally simple ranking representations:
+- `REBUILD`: retain primitive elapsed-time values and rebuild a sorted copy on
+  first rank query after a mutation.
+- `SORTED_ARRAY`: keep a primitive sorted elapsed-time array up to date.
 
-- `REBUILD`: append to a primitive elapsed-time array; sort a reusable copy on the first rank query after a mutation.
-- `SORTED_ARRAY`: maintain a sorted primitive array incrementally on each rankable ADD/REV/start change.
+Both models retain chronological ADD rows, resolve REV newest-first using exact
+(registration ID, UTC passage time), apply stage starts, calculate competition ranks
+with ties (1, 1, 3), and provide bounded sequence-based display visits.
 
-Both retain chronological ADD rows including revoked entries, resolve REV newest-first by (registration ID, UTC passage milliseconds), apply per-registration stage starts, retain competition ranking with ties (1, 1, 3), and expose bounded sequence-based display visits. Row and rank-array growth events and separate state/ranking revision counters are observable.
+The first version deliberately uses absolute UTC epoch milliseconds for starts and
+passages; it does not recreate production's compact/time-only stage start rules.
 
-This first slice uses **absolute UTC epoch milliseconds** for starts and passages.
-It intentionally does not replicate production's `StageTiming` logic for compact time-only timestamps, midnight or DST. These require a separate correctness test suite before interpreting end-to-end timings.
+## Run
 
-## Tests
-
-```shell
+```sh
 mvn -B verify
+java -cp target/classes emb.experiment.registration.DiagnosticBenchmark 500
 ```
 
-JUnit 5 exercises ties, multiple identical passages, newest-first REV, missing/changed stage starts, and seeded differential workloads across initial array capacity.
+Tests include an **independent counting oracle**, deterministic ADD/REV/start workloads,
+display paging, capacity growth over 512 rows and a 5,000-row case.
 
-## Measurement roadmap
-
-1. Validate against an independent oracle (not merely cross-candidate agreement).
-2. Add retained-state and query/update change-propagation correctness tests including page cursors.
-3. Add explicit baseline (`ArrayList` + full ranking recalculation) to match the actual current production behaviour; do not infer end-to-end performance from isolated ranking.
-4. Measure fresh JVM startup separately from warm construction/preallocation for 500 rows, then 512→513 growth, 1,000 and 5,000.
-5. Separate steady-state allocations per operation, rank/query latency and changed-display projection cost. JMH or equivalent controlled repetitions are required; simple wall-clock runs are diagnostic only.
-6. Rerun the selected candidates on the real Pi Zero with the separately built OS/runtime image.
-
-No performance superiority is claimed at this stage.
+See [BENCHMARK.md](BENCHMARK.md) for the workload definitions, fresh-JVM probe,
+allocation/growth measurement, limitations and unfinished architecture comparisons.
+The benchmark is diagnostic only; there are no validated performance conclusions.
