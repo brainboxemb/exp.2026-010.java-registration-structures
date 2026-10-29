@@ -143,6 +143,7 @@ For each unique id it retains only small scalar metadata:
 ```text
 registrationId -> {
     retainedCount
+    onlyRetainedRow
     validCount
     onlyValidRow
 }
@@ -151,8 +152,9 @@ registrationId -> {
 Meanings:
 
 - `retainedCount`: number of ADD rows for this id in RegistrationList;
-- `validCount`: number of those rows currently valid;
-- `onlyValidRow`: direct RegistrationList row index when `validCount == 1`.
+- `onlyRetainedRow`: direct row when `retainedCount == 1`;
+- `validCount`: number of retained rows currently valid;
+- `onlyValidRow`: direct valid row when `validCount == 1`.
 
 No list of all row positions is retained.
 
@@ -186,6 +188,7 @@ The preferred lookup implementation is an open-addressed primitive hash table:
 ```text
 int[]  keys
 int[]  retainedCount
+int[]  onlyRetainedRow
 int[]  validCount
 int[]  onlyValidRow
 long[] startTime
@@ -248,17 +251,23 @@ at read time.
 
 ## 5. Start-time mutation: scan instead of maintaining another index
 
-A start-time change for one registrationId may affect more than one retained ADD row.
+A start-time change normally affects exactly one retained ADD row.
 
-Do not add another per-id list of row positions merely to optimize this rare operation.
-
-Instead:
+Use the same cheap single/multiple split:
 
 ```text
 RegistrationIndex.startTime[id] = new start
 
-scan RegistrationList
-    for rows with registrationId == changed id:
+retainedCount == 0
+    -> no row update
+
+retainedCount == 1
+    -> update onlyRetainedRow directly
+
+retainedCount > 1
+    -> scan RegistrationList for rows with registrationId == changed id:
+
+        for every matching row:
         if valid + old elapsed:
             RankingIndex.remove(old elapsed)
 
@@ -268,9 +277,10 @@ scan RegistrationList
             RankingIndex.add(new elapsed)
 ```
 
-At roughly 500 rows this scan is cheap, allocation-free and simple.
+The exceptional scan remains cheap at roughly 500 rows and avoids maintaining a dynamic
+position list for the uncommon multiple-passage case.
 
-The scan updates both cached `startTime[row]` and `elapsedTime[row]` for the affected rows.
+Both the direct path and scan update `startTime[row]` and `elapsedTime[row]` for the affected rows.
 No extra traversal is required because elapsed time already has to be recalculated.
 
 The benchmark should include this operation before deciding that another index is justified.
@@ -474,9 +484,9 @@ slots, 1024 mutation slots and a 512-entry sorted ranking array, primitive paylo
 | RegistrationIndex arrays (1024) | 24,576 bytes |
 | RegistrationMutations arrays (1024) | 6,144 bytes |
 | Sorted RankingIndex long[] (512) | 4,096 bytes |
-| **Total** | **72,704 bytes** |
+| **Total** | **76,800 bytes** |
 
-This is about 71 KiB of primitive payload, excluding JVM object/array headers and alignment.
+This is exactly 75 KiB of primitive payload, excluding JVM object/array headers and alignment.
 
 Compared with 512 row slots, the extra 512 retained-row capacity costs only about 18.5 KiB.
 That is a deliberate trade: avoid the likely 512→1024 whole-row-array copy once duplicate or
@@ -498,7 +508,10 @@ For normal capacity:
 | ADD | O(1) append | O(1) average | candidate-dependent | none |
 | REV, one valid row | O(1) direct row | O(1) average | candidate-dependent | none |
 | REV, multiple valid rows | O(N) reverse scan | O(1) average | candidate-dependent | none |
-| Start change | O(N) scan | O(1) lookup | K removals/adds | none |
+| Start change, one retained row | O(1) direct row | O(1) average | one remove/add | none |
+| Start change, multiple rows | O(N) scan | O(1) average | K removals/adds | none |
+| Visit one registration, one retained row | O(1) direct row | O(1) average | one rank query | none |
+| Visit one registration, multiple rows | O(N) scan | O(1) average | K rank queries | none |
 | Visit N rows | O(N) requested rows | none | N rank queries | none |
 | Append mutation | none | none | none | O(1), none |
 | Visit mutation batch | none | none | none | O(batch), none |
@@ -531,10 +544,11 @@ The implementation should test these invariants continuously:
 2. REV never physically removes a row;
 3. lookup `retainedCount` equals the number of retained rows for that id;
 4. lookup `validCount` equals the number of valid rows for that id;
-5. when `validCount == 1`, `onlyValidRow` points to that row;
-6. RankingIndex occurrence count equals the number of valid rows with known elapsed time;
-7. initial LogBook replay creates no display mutations;
-8. live mutation revisions are strictly monotonic;
-9. snapshots carry the mutation revision of the exact serialized state;
-10. expired mutation history always forces a new snapshot;
-11. ordinary visitors do not allocate result lists.
+5. when `retainedCount == 1`, `onlyRetainedRow` points to that row;
+6. when `validCount == 1`, `onlyValidRow` points to that row;
+7. RankingIndex occurrence count equals the number of valid rows with known elapsed time;
+8. initial LogBook replay creates no display mutations;
+9. live mutation revisions are strictly monotonic;
+10. snapshots carry the mutation revision of the exact serialized state;
+11. expired mutation history always forces a new snapshot;
+12. ordinary visitors do not allocate result lists.
