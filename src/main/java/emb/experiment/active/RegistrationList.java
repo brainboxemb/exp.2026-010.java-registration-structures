@@ -178,7 +178,7 @@ public final class RegistrationList {
         if (!index.setStartTime(slot, startTime))
             return false;
 
-        boolean rankingChanged = recalculateRowsForStart(registrationId, startTime);
+        boolean rankingChanged = recalculateRowsForStart(slot, registrationId, startTime);
         if (!initialLoading && index.retainedCount(slot) > 0) {
             mutations.append(
                     RegistrationMutations.Kind.START_CHANGED,
@@ -196,7 +196,7 @@ public final class RegistrationList {
         if (slot < 0 || !index.deleteStartTime(slot))
             return false;
 
-        boolean rankingChanged = recalculateRowsForStart(registrationId, NO_TIME);
+        boolean rankingChanged = recalculateRowsForStart(slot, registrationId, NO_TIME);
         if (!initialLoading && index.retainedCount(slot) > 0) {
             mutations.append(
                     RegistrationMutations.Kind.START_CHANGED,
@@ -245,7 +245,16 @@ public final class RegistrationList {
         if (registrationId == 0 || visitor == null)
             throw new IllegalArgumentException("invalid registration visit");
 
+        int slot = index.findExistingSlot(registrationId);
+        if (slot < 0 || index.retainedCount(slot) == 0)
+            return 0;
+
         ranking.prepare();
+
+        if (index.retainedCount(slot) == 1) {
+            emitRow(index.onlyRetainedRow(slot), visitor);
+            return 1;
+        }
 
         int visited = 0;
         for (int row = 0; row < size; row++) {
@@ -375,34 +384,51 @@ public final class RegistrationList {
                 rank);
     }
 
-    private boolean recalculateRowsForStart(int registrationId, long startTime) {
+    private boolean recalculateRowsForStart(
+            int lookupSlot,
+            int registrationId,
+            long startTime) {
+
+        int retained = index.retainedCount(lookupSlot);
+        if (retained == 0)
+            return false;
+
+        if (retained == 1)
+            return updateRowStart(index.onlyRetainedRow(lookupSlot), startTime);
+
         boolean rankingChanged = false;
 
         for (int row = 0; row < size; row++) {
-            if (registrationIds[row] != registrationId)
-                continue;
+            if (registrationIds[row] == registrationId)
+                rankingChanged |= updateRowStart(row, startTime);
+        }
 
-            long oldElapsed = elapsedTimes[row];
-            long newElapsed = elapsed(startTime, passageTimes[row]);
+        return rankingChanged;
+    }
 
-            // Start time belongs to the row view even when elapsed remains NO_TIME.
-            startTimes[row] = startTime;
+    private boolean updateRowStart(int row, long startTime) {
+        long oldElapsed = elapsedTimes[row];
+        long newElapsed = elapsed(startTime, passageTimes[row]);
 
-            if (oldElapsed == newElapsed)
-                continue;
+        // Start time belongs to the row view even when elapsed remains unknown.
+        startTimes[row] = startTime;
 
-            if (isValid(row) && oldElapsed != NO_TIME) {
-                if (!ranking.remove(oldElapsed))
-                    throw new IllegalStateException("RankingIndex lost elapsed value " + oldElapsed);
-                rankingChanged = true;
-            }
+        if (oldElapsed == newElapsed)
+            return false;
 
-            elapsedTimes[row] = newElapsed;
+        boolean rankingChanged = false;
 
-            if (isValid(row) && newElapsed != NO_TIME) {
-                ranking.add(newElapsed);
-                rankingChanged = true;
-            }
+        if (isValid(row) && oldElapsed != NO_TIME) {
+            if (!ranking.remove(oldElapsed))
+                throw new IllegalStateException("RankingIndex lost elapsed value " + oldElapsed);
+            rankingChanged = true;
+        }
+
+        elapsedTimes[row] = newElapsed;
+
+        if (isValid(row) && newElapsed != NO_TIME) {
+            ranking.add(newElapsed);
+            rankingChanged = true;
         }
 
         return rankingChanged;
