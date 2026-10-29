@@ -17,7 +17,9 @@ RegistrationList
 RegistrationIndex
     primitive open-addressed table
     1024 slots
-    validCount + onlyValidRow + current start
+    retainedCount + onlyRetainedRow
+    validCount + onlyValidRow
+    current compact start
 
 RankingIndex
     SortedArrayRanking
