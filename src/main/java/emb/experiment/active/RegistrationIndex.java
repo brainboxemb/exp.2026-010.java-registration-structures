@@ -41,14 +41,18 @@ final class RegistrationIndex {
     int ensureSlot(int registrationId) {
         requireRegistrationId(registrationId);
 
-        if ((occupied + 1) * 2 > keys.length)
-            grow();
-
         int slot = findSlot(registrationId);
-        if (keys[slot] == 0) {
-            keys[slot] = registrationId;
-            occupied++;
+        if (keys[slot] != 0)
+            return slot;
+
+        // Grow only when a genuinely new id would cross the 0.5 load factor.
+        if ((occupied + 1) * 2 > keys.length) {
+            grow();
+            slot = findSlot(registrationId);
         }
+
+        keys[slot] = registrationId;
+        occupied++;
         return slot;
     }
 
