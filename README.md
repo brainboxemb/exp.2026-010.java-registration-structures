@@ -123,5 +123,7 @@ src/jmh/.../RegistrationListJmhBenchmark.java
 src/jmh/.../RankingIndexJmhBenchmark.java
 ```
 
+Retained memory evidence is in `evidence/2026-10-29-memory.md`.
+
 The Raspberry Pi image is maintained separately. This experiment does not modify
 the production Event Timing application.
