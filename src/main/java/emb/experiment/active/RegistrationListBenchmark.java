@@ -5,6 +5,7 @@ import emb.experiment.ranking.RankingIndex;
 import emb.experiment.ranking.RankingIndexKind;
 
 import java.lang.management.ManagementFactory;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -17,6 +18,8 @@ import java.util.Locale;
  */
 public final class RegistrationListBenchmark {
     private static final long BASE_TIME = 1_700_000_000_000L;
+    private static final long BASE_START =
+            StageTiming.compactUtc(Instant.ofEpochMilli(BASE_TIME));
     private static final int WARMUPS = 3;
     private static final int SAMPLES = 5;
     private static volatile long blackhole;
@@ -215,7 +218,7 @@ public final class RegistrationListBenchmark {
         RegistrationList list = emptyListOnly(ids * 2);
 
         for (int i = 0; i < ids; i++)
-            list.setStart(registrationId(i), BASE_TIME);
+            list.setStart(registrationId(i), BASE_START);
 
         long sequence = 0;
         for (int i = 0; i < ids; i++)
@@ -249,7 +252,7 @@ public final class RegistrationListBenchmark {
         long before = System.nanoTime();
 
         for (int i = 0; i < changes; i++) {
-            if (!list.setStart(registrationId(i), BASE_TIME + 1_000L))
+            if (!list.setStart(registrationId(i), stageStart(1_000L)))
                 throw new IllegalStateException("expected changed start");
         }
 
@@ -274,7 +277,7 @@ public final class RegistrationListBenchmark {
     private static Measurement mutationBatchListOnly(int population, int batch, Meter meter) {
         RegistrationList list = filledUniqueListOnly(population);
         for (int i = 0; i < batch; i++)
-            list.setStart(registrationId(i), BASE_TIME + 1_000L + i);
+            list.setStart(registrationId(i), stageStart(1_000L + i * 10L));
         MutationChecksum visitor = new MutationChecksum();
         long after = list.latestMutationRevision() - batch;
 
@@ -334,7 +337,7 @@ public final class RegistrationListBenchmark {
 
             for (int i = 0; i < 4; i++) {
                 int idIndex = baseId + i;
-                long start = BASE_TIME + (block + 1L) * 10L + i;
+                long start = stageStart((block + 1L) * 100L + i * 10L);
                 if (!list.setStart(registrationId(idIndex), start))
                     throw new IllegalStateException("mixed workload start did not change");
             }
@@ -369,7 +372,7 @@ public final class RegistrationListBenchmark {
         RegistrationList list = emptyList(kind, population);
         list.beginInitialLoad();
         for (int i = 0; i < population; i++)
-            list.setStart(registrationId(i), BASE_TIME);
+            list.setStart(registrationId(i), BASE_START);
         for (int i = 0; i < population; i++)
             list.add(i + 1L, registrationId(i), passage(i));
         list.finishInitialLoad();
@@ -419,7 +422,7 @@ public final class RegistrationListBenchmark {
 
         RegistrationList list = emptyList(kind, rows);
         for (int i = 0; i < ids; i++)
-            list.setStart(registrationId(i), BASE_TIME);
+            list.setStart(registrationId(i), BASE_START);
 
         long sequence = 0;
         for (int i = 0; i < ids; i++)
@@ -455,7 +458,7 @@ public final class RegistrationListBenchmark {
         long before = System.nanoTime();
 
         for (int i = 0; i < changes; i++) {
-            if (!list.setStart(registrationId(i), BASE_TIME + 1_000L))
+            if (!list.setStart(registrationId(i), stageStart(1_000L)))
                 throw new IllegalStateException("expected changed start");
         }
 
@@ -487,7 +490,7 @@ public final class RegistrationListBenchmark {
 
         RegistrationList list = filledUnique(kind, population);
         for (int i = 0; i < batch; i++)
-            list.setStart(registrationId(i), BASE_TIME + 1_000L + i);
+            list.setStart(registrationId(i), stageStart(1_000L + i * 10L));
         MutationChecksum visitor = new MutationChecksum();
 
         long after = list.latestMutationRevision() - batch;
@@ -508,7 +511,7 @@ public final class RegistrationListBenchmark {
         list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
-            list.setStart(registrationId(i), BASE_TIME);
+            list.setStart(registrationId(i), BASE_START);
 
         for (int i = 0; i < population; i++)
             list.add(i + 1L, registrationId(i), passage(i));
@@ -551,7 +554,7 @@ public final class RegistrationListBenchmark {
         list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
-            list.setStart(registrationId(i), BASE_TIME);
+            list.setStart(registrationId(i), BASE_START);
 
         for (int i = 0; i < population; i++)
             list.add(i + 1L, registrationId(i), passage(i));
@@ -601,6 +604,11 @@ public final class RegistrationListBenchmark {
         while (result < value)
             result <<= 1;
         return result;
+    }
+
+    private static long stageStart(long offsetMillis) {
+        return StageTiming.compactUtc(
+                Instant.ofEpochMilli(BASE_TIME + offsetMillis));
     }
 
     private static int registrationId(int index) {
