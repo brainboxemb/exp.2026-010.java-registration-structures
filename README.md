@@ -2,7 +2,8 @@
 
 **Start with [FLOW.md](FLOW.md)** for the functional flow,
 **[MEMORY.md](MEMORY.md)** for the concrete memory/search structures,
-**[DECISION.md](DECISION.md)** for the current evidence-based architecture choice, and
+**[DECISION.md](DECISION.md)** for the current evidence-based architecture choice,
+**[PRODUCTION-PARITY.md](PRODUCTION-PARITY.md)** for the real Event Timing semantics, and
 **[PI.md](PI.md)** for the physical Pi Zero qualification procedure.
 
 Together they define what belongs in the LogBook, RegistrationList,
@@ -107,11 +108,13 @@ Start here:
 FLOW.md
 MEMORY.md
 DECISION.md
+PRODUCTION-PARITY.md
 PI.md
 
 RegistrationList.java
 RegistrationIndex.java
 RegistrationMutations.java
+StageTiming.java
 
 RankingIndex.java
 RebuildSortRanking.java
