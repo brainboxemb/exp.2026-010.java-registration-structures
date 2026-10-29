@@ -97,10 +97,11 @@ The retained ADD row stays in its original chronological position.
 
 An unmatched REV does not change registration state.
 
-Experiment 010 matches this rule, with an optimization:
+Experiment 010 matches this rule, with two small direct-position optimizations:
 
-- `validCount == 1`: inspect `onlyValidRow` directly;
-- `validCount > 1`: scan the retained rows backwards.
+- `retainedCount == 1`: `onlyRetainedRow` gives the direct row for start updates/sync;
+- `validCount == 1`: `onlyValidRow` gives the direct REV candidate;
+- multiple retained/valid rows use the exceptional list scan.
 
 The optimization does not change matching semantics.
 
