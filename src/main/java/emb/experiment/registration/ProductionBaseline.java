@@ -53,6 +53,7 @@ public final class ProductionBaseline implements ProjectionModel {
     private int estimatedListGrowthEvents;
     private int rankScratchGrowthEvents;
     private int rankableCount;
+    private boolean rebuilding;
     private long stateRevision;
     private long rankingRevision;
     private long lastMutationSequence;
@@ -69,6 +70,20 @@ public final class ProductionBaseline implements ProjectionModel {
         this.changes = new ChangeJournal(historyCapacity);
     }
 
+    @Override public void beginRebuild() {
+        if (!rows.isEmpty() || rebuilding)
+            throw new IllegalStateException("rebuild requires a newly created empty projection");
+        rebuilding = true;
+    }
+
+    @Override public void completeRebuild() {
+        if (!rebuilding) throw new IllegalStateException("rebuild was not started");
+        // Production ActiveRegistrations.completeRebuild() recalculates only once.
+        recalculateRanking();
+        rebuilding = false;
+        changes.resetToRevision(stateRevision);
+    }
+
     @Override public boolean add(long sequence, int id, long passageMillis) {
         if (sequence <= lastMutationSequence || passageMillis < 0)
             throw new IllegalArgumentException("ADD sequence must increase and time must be nonnegative");
@@ -81,13 +96,15 @@ public final class ProductionBaseline implements ProjectionModel {
         rows.add(row);
 
         // Production recalculates after every live ADD, even without a stage start.
-        recalculateRanking();
+        if (!rebuilding) recalculateRanking();
+        else if (row.elapsed() != MISSING) rankableCount++;
         boolean changedRank = row.elapsed() != MISSING;
         if (changedRank) rankingRevision++;
         lastMutationSequence = sequence;
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
-                sequence, sequence, changedRank);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
+                    sequence, sequence, changedRank);
         return true;
     }
 
@@ -100,13 +117,15 @@ public final class ProductionBaseline implements ProjectionModel {
                 boolean changedRank = row.elapsed() != MISSING;
                 row.valid = false;
                 // Production recomputes after every matching live REV.
-                recalculateRanking();
+                if (!rebuilding) recalculateRanking();
+                else if (changedRank) rankableCount--;
                 if (changedRank) rankingRevision++;
                 lastMutationSequence = sequence;
                 lastRevokeSequence = sequence;
                 stateRevision++;
-                changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
-                        sequence, row.sequence, changedRank);
+                if (!rebuilding)
+                    changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
+                            sequence, row.sequence, changedRank);
                 return true;
             }
         }
@@ -119,8 +138,9 @@ public final class ProductionBaseline implements ProjectionModel {
         if (old != null && old.longValue() == startEpochMillis) return false;
         boolean changedRank = applyStart(id, startEpochMillis);
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.START_SET, id,
-                0L, 0L, changedRank);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.START_SET, id,
+                    0L, 0L, changedRank);
         return true;
     }
 
@@ -128,8 +148,9 @@ public final class ProductionBaseline implements ProjectionModel {
         if (stageStarts.remove(id) == null) return false;
         boolean changedRank = applyStart(id, MISSING);
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id,
-                0L, 0L, changedRank);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id,
+                    0L, 0L, changedRank);
         return true;
     }
 
@@ -144,7 +165,14 @@ public final class ProductionBaseline implements ProjectionModel {
             changedAnyRow = true;
             if (row.valid && oldElapsed != newElapsed) changedRank = true;
         }
-        if (changedAnyRow) recalculateRanking();
+        if (changedAnyRow && !rebuilding) recalculateRanking();
+        if (changedRank && rebuilding) {
+            // Count only transitions, including missing -> rankable and vice versa.
+            // This avoids any O(N log N) sorting while rebuilding history.
+            int count = 0;
+            for (Entry entry : rows) if (entry.valid && entry.elapsed() != MISSING) count++;
+            rankableCount = count;
+        }
         if (changedRank) rankingRevision++;
         return changedRank;
     }
@@ -182,6 +210,7 @@ public final class ProductionBaseline implements ProjectionModel {
     @Override public int visitAfter(long afterSequence, int limit, RegistrationProjection.RowVisitor visitor) {
         if (afterSequence < 0L || limit < 0 || visitor == null)
             throw new IllegalArgumentException("invalid display query");
+        if (rebuilding) throw new IllegalStateException("historical replay incomplete");
         int visited = 0;
         for (Entry row : rows) {
             if (visited >= limit) break;
