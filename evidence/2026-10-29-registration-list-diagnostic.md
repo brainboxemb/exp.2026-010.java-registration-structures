@@ -2,8 +2,8 @@
 
 ## Provenance
 
-- Measured commit: `5aadba46e1cb550330fa333dc6ab17a75ead952f`
-- GitHub Actions run: https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40833288897
+- Measured commit: `99632df0062b0392ce461f59c4db0043b86291a3`
+- GitHub Actions run: https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40849728457
 - Result: success
 - GitHub-hosted Ubuntu, OpenJDK 64-Bit Server VM / Java 17
 - Source target: Java 8
@@ -11,118 +11,173 @@
 - Diagnostic harness only: no JMH forks, confidence intervals, CPU-frequency control or Pi Zero yet
 
 This run measures the complete experimental `RegistrationList` around each interchangeable
-`RankingIndex`, not only the ranking structure.
+`RankingIndex`.
 
-The list uses primitive append-only row arrays, a primitive `RegistrationIndex`,
-a bounded primitive mutation ring, cached row start/elapsed times and visitor-based reads.
+The measured implementation uses:
 
-## Normal population: 500 retained registrations
+- primitive append-only registration row arrays;
+- primitive open-addressed `RegistrationIndex`;
+- cached row start + elapsed time;
+- bounded primitive `RegistrationMutations` ring;
+- silent historical `beginInitialLoad()/finishInitialLoad()`;
+- visitor-based row/snapshot reads without temporary result lists.
 
-Median nanoseconds per operation:
+## Pure surrounding-structure cost
 
-| Scenario | Rebuild+sort | Sorted array | TreeMap | Pooled AVL |
-| --- | ---: | ---: | ---: | ---: |
-| Initial fill | 494.1 | 428.9 | 449.5 | 272.8 |
-| Direct REV (`validCount == 1`) | 268.3 | 458.9 | 656.0 | 89.0 |
-| Exceptional REV scan (`validCount == 2`) | 1,365.2 | 643.2 | 373.1 | 347.5 |
-| Start-time change (scan list + update ranking) | 847.9 | 7,558.7 | 1,133.7 | 752.5 |
-| Snapshot row (including current rank) | 171.8 | 188.3 | 2,675.7 | 69.0 |
-| Mutation-ring entry read | 87.3 | 79.5 | 86.1 | 86.2 |
+`LIST_ONLY` uses a benchmark-only O(1) ranking stub so the list/index/ring costs are visible
+without a ranking algorithm dominating them.
 
-These values are one CI run and must not be presented as stable production latencies.
-The non-monotonic 1,000/5,000 results elsewhere in the CSV show that JIT/runner effects
-are material.
+At 500 retained rows:
 
-## What this run does support
+| Scenario | Median |
+| --- | ---: |
+| Direct REV, one valid row | 250.5 ns |
+| Exceptional REV scan, two valid rows/id | 1,042.2 ns |
+| Start-time scan/update | 863.8 ns |
+| Snapshot visit | 31.6 ns / row |
+| Mutation-ring visit | 95.0 ns / mutation |
 
-### 1. Keep the exceptional linear scan simple
+All five reported **0 measured allocated bytes/op**.
 
-The multiple-registration REV workload deliberately constructs two valid rows for each id,
-with the row being revoked in the old half of the list. REV therefore scans backwards to find
-the matching row, then scans again after `2 -> 1` to recover `onlyValidRow`.
+The exact nanosecond figures vary significantly between GitHub-hosted runs. The useful
+conclusion is structural: the exceptional full-list scan remains very small at ~500 rows and
+does not justify a second variable-size per-id positions collection at this stage.
 
-At 500 retained rows that complete exceptional path remained in the sub-microsecond to low
-microsecond range on this runner.
+## Mixed workload
 
-That supports the current design choice:
+The deterministic 1,024-operation profile starts from a silent 500-row initial load. Each
+16-operation block performs:
 
-- store only `validCount + onlyValidRow` in the primitive RegistrationIndex;
-- do **not** maintain a per-id dynamic list of every row position;
-- measure again on Pi Zero before reconsidering.
+- 4 duplicate ADDs;
+- 4 matching REVs;
+- 4 start-time changes;
+- 3 mutation-sync batches;
+- 1 full snapshot.
 
-### 2. Stable row positions make REV/synchronization cheap
+Valid registration count stays approximately stable while retained ADD rows grow from 500 to
+756. This intentionally represents the fact that REV does not delete retained rows.
 
-REV never removes or shifts a row. A row index remains stable for the lifetime of the
-RegistrationList and can therefore be used as the subject of ROW_ADDED/ROW_REVOKED mutations.
+### 512-row start versus 1024-row preallocation
 
-The normal one-valid-row REV path uses the RegistrationIndex directly and performs no row scan.
+| RankingIndex | Cross 512→1024 | Preallocated 1024 rows | Alloc/op after preallocation |
+| --- | ---: | ---: | ---: |
+| Rebuild + sort | 2.878 µs/op | 2.504 µs/op | 0 B |
+| Sorted primitive array | 1.314 µs/op | 1.073 µs/op | 0 B |
+| TreeMap | 18.997 µs/op | 17.511 µs/op | 3286.7 B |
+| Pooled order-statistic AVL | 1.143 µs/op | 1.008 µs/op | 0 B |
 
-### 3. The mutation ring is small and ranking-independent
+The preallocated scenario uses **1024 RegistrationList rows but only 512 RankingIndex
+capacity**. Row-retention capacity and active-ranking capacity are intentionally independent.
 
-Reading a 64-entry mutation batch was roughly 80–90 ns per entry for all four ranking
-implementations and showed zero measured thread allocation.
+The 512→1024 scenarios report about 37 B/op for the custom non-TreeMap candidates. This is the
+one-time primitive-array growth/copy amortized over the 1,024 operations; it is not normal
+per-mutation object churn.
 
-The mutation ring contains only kind + subject + flags. Registration data is read from the
-current RegistrationList instead of copied into every mutation.
+### Interpretation
 
-### 4. Custom steady-state paths avoid object churn
-
-Measured thread allocation per operation in these steady workloads:
-
-| Workload @ 500 | Rebuild+sort | Sorted array | TreeMap | Pooled AVL |
-| --- | ---: | ---: | ---: | ---: |
-| Direct REV | 0 B | 0 B | 48 B | 0 B |
-| Exceptional REV | 0 B | 0 B | 48 B | 0 B |
-| Start change | 0 B | 0 B | ~72 B | 0 B |
-| Snapshot row | ~9 B* | 0 B | 168 B | 0 B |
-| Mutation read | 0 B | 0 B | 0 B | 0 B |
-
-`*` Rebuild+sort's snapshot includes first-use preparation/sorting after the filled list was
-constructed; allocation attribution should be separated more rigorously in JMH/profiling.
-
-Initial-fill allocation includes construction of all preallocated arrays, so its per-operation
-number is not steady-state churn.
-
-### 5. Start time cached in each row is affordable
-
-Each RegistrationList row now stores:
+This run supports a candidate normal configuration of:
 
 ```text
-long sequence
-int  registrationId
-long passageTime
-long startTime
-long elapsedTime
-byte flags
+RegistrationList rows:       1024
+RegistrationIndex slots:     1024
+RankingIndex active entries: ~512
+RegistrationMutations:       1024
 ```
 
-The extra cached `startTime[]` is one long per retained row: about 4 kB for 500 rows
-(before JVM array headers/alignment). It removes the need for a RegistrationIndex lookup on
-every visitor/snapshot row.
+The extra row headroom is useful because a system with around 500 valid/unique registrations
+can retain more than 500 ADD rows after duplicates and REV. Reserving only 512 rows therefore
+makes an early whole-array growth likely.
 
-RegistrationIndex still retains the current start time per registrationId so a later ADD can
-copy the correct start directly into its new row.
+For the primitive sorted ranking candidate, moving from 512 to 1024 row preallocation costs
+about 18.5 KiB of extra primitive row payload while avoiding that likely copy.
 
-## Scaling checks
+## Silent initial load
 
-The diagnostic also ran 1,000 and 5,000 rows. Important qualitative observations:
+Historical LogBook replay now builds RegistrationList, RegistrationIndex and RankingIndex
+without writing display mutations.
 
-- exceptional scans remain small in absolute terms;
-- start-change cost includes both the O(N) RegistrationList scan and the chosen ranking
-  structure's remove/add cost;
-- TreeMap continues to allocate during ranking mutation/query operations;
-- primitive mutation-ring reads remain allocation-free;
-- snapshot cost strongly depends on the RankingIndex because rank is intentionally calculated
-  at read time.
+Conceptually:
 
-Absolute scaling figures should be taken from the retained CSV artifact, not copied into an
-architecture claim from this single run.
+```text
+beginInitialLoad()
+    replay ADD / REV / starts
+finishInitialLoad()
 
-## Next measurements
+first snapshot -> mutationRevision 0
 
-1. Add JMH/forked versions of the 500-row direct REV, exceptional REV, start change and snapshot.
-2. Separate pure list-scan time from RankingIndex mutation time.
-3. Measure direct row sync after ROW_ADDED/ROW_REVOKED and per-registration sync after
-   START_CHANGED.
-4. Add a realistic mutation ratio rather than only synthetic isolated scenarios.
-5. Repeat on Pi Zero.
+live ADD -> revision 1
+live REV -> revision 2
+...
+```
+
+This has two benefits:
+
+1. the mutation ring is reserved for live display synchronization rather than historical
+   reconstruction;
+2. a snapshot marker has a clean meaning from the start.
+
+Dedicated tests verify that visitors are unavailable while initial load is incomplete and
+that the first live change after the initial snapshot gets revision 1.
+
+## Correctness evidence
+
+In addition to targeted RegistrationList tests, the branch now contains an independent
+object/list oracle that drives seeded mixed ADD/REV/start/delete operations through every
+RankingIndex implementation.
+
+The oracle independently verifies:
+
+- every retained row;
+- cached start/elapsed time;
+- valid state;
+- current competition rank;
+- retained/valid counts per registrationId;
+- unique retained/valid registration counts;
+- LogBook sequence progress;
+- display mutation revision;
+- per-registration visitor results.
+
+CI is green for this oracle.
+
+## Memory shape
+
+Current candidate primitive payload:
+
+| Structure | Capacity | Primitive payload |
+| --- | ---: | ---: |
+| RegistrationList row arrays | 1024 | 37,888 B |
+| RegistrationIndex arrays | 1024 | 24,576 B |
+| RegistrationMutations arrays | 1024 | 6,144 B |
+| Sorted RankingIndex array | 512 | 4,096 B |
+| **Total** |  | **72,704 B (~71 KiB)** |
+
+JVM array/object headers and alignment are excluded.
+
+The TreeMap and pooled-AVL representations have different object overhead and need retained
+heap profiling for a fair full-memory comparison.
+
+## Current evidence-based direction
+
+Keep the simple surrounding design:
+
+- append-only primitive RegistrationList;
+- stable row positions;
+- direct `onlyValidRow` common REV path;
+- linear scan for exceptional multiple registrations and start changes;
+- cached start + elapsed values in each row;
+- rank calculated at read time from a separate RankingIndex;
+- bounded primitive mutation ring;
+- silent initial replay followed by snapshot revision 0;
+- 1024 retained-row preallocation as the current candidate.
+
+For RankingIndex, the sorted primitive array and pooled AVL remain the strongest custom
+candidates in the mixed workload. The sorted primitive array remains notably simpler; the AVL
+is useful as the O(log N) scaling comparison.
+
+## Remaining evidence
+
+1. Forked/JMH measurements for the 500-row steady-state paths.
+2. Retained-heap measurement, especially TreeMap versus pooled AVL.
+3. More realistic event ratios derived from production/old-software traces if available.
+4. Pi Zero qualification using the separate generic Raspberry Pi image.
+5. Production StageTiming/compact-time parity before migration.
