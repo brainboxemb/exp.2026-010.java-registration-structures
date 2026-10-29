@@ -190,7 +190,39 @@ public final class RegistrationList {
 
         int visited = 0;
         for (int row = firstRow; row < size && visited < limit; row++) {
-            visitRow(row, visitor);
+            emitRow(row, visitor);
+            visited++;
+        }
+        return visited;
+    }
+
+    /** Visit exactly one stable row, typically referenced by a row mutation. */
+    public void visitRow(int row, Visitor visitor) {
+        if (row < 0 || row >= size || visitor == null)
+            throw new IllegalArgumentException("invalid registration row");
+
+        ranking.prepare();
+        emitRow(row, visitor);
+    }
+
+    /**
+     * Visit all retained rows for one registrationId.
+     *
+     * This intentionally scans the small chronological list instead of
+     * maintaining a second per-id position collection.
+     */
+    public int visitRegistration(int registrationId, Visitor visitor) {
+        if (registrationId == 0 || visitor == null)
+            throw new IllegalArgumentException("invalid registration visit");
+
+        ranking.prepare();
+
+        int visited = 0;
+        for (int row = 0; row < size; row++) {
+            if (registrationIds[row] != registrationId)
+                continue;
+
+            emitRow(row, visitor);
             visited++;
         }
         return visited;
@@ -210,7 +242,7 @@ public final class RegistrationList {
         long revision = mutations.latestRevision();
 
         for (int row = 0; row < size; row++)
-            visitRow(row, visitor);
+            emitRow(row, visitor);
 
         return revision;
     }
@@ -290,7 +322,7 @@ public final class RegistrationList {
         return lastLogSequence;
     }
 
-    private void visitRow(int row, Visitor visitor) {
+    private void emitRow(int row, Visitor visitor) {
         int registrationId = registrationIds[row];
         long startTime = startTimes[row];
         long elapsedTime = elapsedTimes[row];
