@@ -111,6 +111,33 @@ public class RegistrationListJmhBenchmark {
         }
     }
 
+    @State(Scope.Thread)
+    public static class MultipleRowsState {
+        RegistrationList list;
+        RowChecksum rows;
+
+        @Setup(Level.Trial)
+        public void setup() {
+            list = new RegistrationList(
+                    1024,
+                    1024,
+                    1024,
+                    RankingIndexKind.SORTED_ARRAY.create(512));
+
+            list.beginInitialLoad();
+            for (int i = 0; i < 500; i++)
+                list.setStart(registrationId(i), BASE_START);
+            for (int i = 0; i < 500; i++)
+                list.add(i + 1L, registrationId(i), passage(i));
+
+            // Registration 400 deliberately has two retained rows.
+            list.add(501L, registrationId(400), passage(400) + 10_000L);
+            list.finishInitialLoad();
+
+            rows = new RowChecksum();
+        }
+    }
+
     @Benchmark
     public long snapshot500(ListState state) {
         state.rows.reset();
@@ -126,7 +153,14 @@ public class RegistrationListJmhBenchmark {
     }
 
     @Benchmark
-    public long registrationSyncScan(ListState state) {
+    public long registrationSyncSingle(ListState state) {
+        state.rows.reset();
+        int visited = state.list.visitRegistration(registrationId(400), state.rows);
+        return state.rows.value + visited;
+    }
+
+    @Benchmark
+    public long registrationSyncMultiple(MultipleRowsState state) {
         state.rows.reset();
         int visited = state.list.visitRegistration(registrationId(400), state.rows);
         return state.rows.value + visited;
@@ -146,6 +180,27 @@ public class RegistrationListJmhBenchmark {
     @Benchmark
     public long startChangeAndSyncRoundTrip(ListState state) {
         int id = registrationId(450);
+
+        if (!state.list.setStart(id, stageStart(500L)))
+            throw new IllegalStateException("start should change");
+
+        state.rows.reset();
+        int changedVisited = state.list.visitRegistration(id, state.rows);
+        long checksum = state.rows.value + changedVisited;
+
+        if (!state.list.setStart(id, BASE_START))
+            throw new IllegalStateException("start should restore");
+
+        state.rows.reset();
+        int restoredVisited = state.list.visitRegistration(id, state.rows);
+        checksum += state.rows.value + restoredVisited;
+
+        return checksum;
+    }
+
+    @Benchmark
+    public long startChangeMultipleRoundTrip(MultipleRowsState state) {
+        int id = registrationId(400);
 
         if (!state.list.setStart(id, stageStart(500L)))
             throw new IllegalStateException("start should change");
