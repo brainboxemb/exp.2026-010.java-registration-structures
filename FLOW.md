@@ -254,7 +254,230 @@ The implementation and tests should enforce these rules:
 9. `rankOf(elapsed)` returns the current competition rank at read time.
 10. After every ADD, REV or start-time mutation, ActiveRegistrations and RankingIndex agree.
 
-## 9. What Experiment 010 measures
+
+## 9. Fast registration lookup and unique-registration count
+
+`ActiveRegistrations` remains a chronological list of retained ADD rows.
+
+For the normal lookup case it may additionally keep one small entry per
+`registrationId`:
+
+```text
+registrationId -> {
+    validCount
+    onlyValidPosition
+}
+```
+
+Meaning:
+
+```text
+validCount = 0   no currently valid ADD for this registrationId
+validCount = 1   onlyValidPosition points directly to that row
+validCount > 1   exceptional case; scan the registration list
+```
+
+When a REV changes a registrationId from multiple valid rows back to exactly
+one, a one-time list scan may be used to rediscover `onlyValidPosition`.
+
+This deliberately avoids maintaining a second complex list of positions.
+With roughly 500 retained registrations, scanning the complete list in the
+exceptional case is expected to be cheap and should be measured rather than
+optimized prematurely.
+
+Because this lookup has one entry per known `registrationId`, it also gives
+us a unique-registration count without scanning every row.
+
+Two counts must remain distinct:
+
+- **unique retained registrations**: number of registrationIds represented by
+  retained ADD rows, including an id whose rows are currently all invalid;
+- **unique currently valid registrations**: number of lookup entries with
+  `validCount > 0`.
+
+The implementation should name whichever count it exposes explicitly so these
+two meanings cannot be confused.
+
+## 10. Display synchronization: snapshot plus mutation list
+
+The display does not need the complete LogBook. It needs:
+
+1. an occasional full snapshot of `ActiveRegistrations`;
+2. all display-relevant mutations that happened after that snapshot.
+
+Therefore the active state also owns a monotonically numbered
+`RegistrationMutations` list:
+
+```text
+ActiveRegistrations
+       |
+       +---- RankingIndex
+       |
+       +---- RegistrationMutations
+```
+
+Every display-relevant live mutation gets one increasing mutation revision.
+
+For example:
+
+```text
+revision 101  ADD     original ADD sequence 450
+revision 102  REV     affects ADD sequence 392
+revision 103  START   affects registrationId A0007
+```
+
+The exact mutation payload can be refined later. The essential property is
+that revisions are strictly increasing and provide a stable synchronization
+cursor.
+
+### Taking a snapshot
+
+Snapshot creation and obtaining its mutation marker must happen as one
+serialized operation:
+
+```text
+                 one serialized state operation
+              +--------------------------------+
+              |                                |
+              |  read ActiveRegistrations      |
+              |  snapshotRevision = current    |
+              |      mutation revision         |
+              |                                |
+              +--------------------------------+
+```
+
+The result sent to the display is conceptually:
+
+```text
+RegistrationSnapshot {
+    rows
+    mutationRevision = 103
+}
+```
+
+This means:
+
+> The snapshot describes state through mutation revision 103.
+
+The display remembers `103`.
+
+### Synchronizing after the snapshot
+
+After receiving the snapshot:
+
+```text
+snapshot revision = 103
+          |
+          v
+request mutations > 103
+          |
+          +--> revision 104
+          +--> revision 105
+          +--> revision 106
+          ...
+```
+
+If more live changes arrive while these mutations are being transferred, they
+receive later revisions and are read in a subsequent batch. No special
+snapshot rebuild is needed just because the system continues to change.
+
+The display advances its own cursor only after it has successfully applied a
+mutation/batch.
+
+### Taking a later snapshot
+
+At any time a new full snapshot may replace the old synchronization base:
+
+```text
+old snapshot marker = 103
+mutations applied through 147
+
+new snapshot taken
+new snapshot marker = 152
+```
+
+Once the new snapshot is accepted, that display no longer needs mutations at
+or before revision 152.
+
+This is why the snapshot contains a **mutation marker**, not a registration
+sequence number. Registration ADD sequence and display mutation revision have
+different meanings.
+
+### Bounded mutation history
+
+The mutation list does not have to grow forever. A bounded ring buffer is a
+reasonable implementation.
+
+It should expose at least:
+
+```text
+latestRevision
+oldestAvailableRevision
+visitAfter(revision, limit)
+```
+
+If a display asks for a revision older than `oldestAvailableRevision`, the
+mutation history is incomplete. The correct response is explicit:
+
+```text
+mutation history expired
+        |
+        v
+take/request a new full snapshot
+```
+
+Never silently continue with an incomplete mutation stream.
+
+With multiple displays, each display keeps its own snapshot/mutation cursor.
+The server-side mutation list therefore cannot normally discard history merely
+because one display has taken a new snapshot; retention is governed by the
+bounded history policy (or later by the oldest connected consumer cursor if
+we deliberately implement that optimization).
+
+### What counts as a display mutation
+
+At minimum:
+
+- ADD of a retained registration;
+- REV that changes a retained ADD from valid to invalid;
+- start-time SET/DELETE that changes cached start/elapsed information for one
+  or more retained rows.
+
+A rank change by itself does **not** require rewriting or emitting mutations
+for every affected registration. Rank is calculated at visitor/read time from
+the current `RankingIndex`.
+
+A start-time mutation may therefore identify the affected registrationId or
+affected rows, while the visitor still obtains each current rank dynamically.
+
+## 11. Resulting state model
+
+The intended in-memory model is now:
+
+```text
+LogBook                         authoritative history
+   |
+   v
+ActiveRegistrations             retained ADD rows for active WP
+   |
+   +-- registration lookup      validCount + fast single position
+   |        |
+   |        +-- unique registration counts
+   |
+   +-- RankingIndex             valid known elapsed times only
+   |
+   +-- RegistrationMutations    ordered display synchronization changes
+```
+
+The important separation is:
+
+- registration rows describe registrations;
+- the ranking index answers current rank;
+- the mutation list describes what changed since a display snapshot.
+
+None of these structures replaces the LogBook.
+
+## 12. What Experiment 010 measures
 
 The flow above is fixed.
 
@@ -276,7 +499,7 @@ interface RankingIndex {
 
 `prepare()` exists so rebuild+sort can be compared fairly with always-ready structures.
 
-## 10. What is not part of this experiment yet
+## 13. What is not part of this experiment yet
 
 This repository does not yet decide:
 
