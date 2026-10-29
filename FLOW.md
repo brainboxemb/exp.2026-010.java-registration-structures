@@ -8,19 +8,23 @@ from benchmark classes or ranking data structures.
 
 ## 1. Responsibilities
 
-There are three different concerns:
+The state is split into a historical source plus three small in-memory helpers:
 
 ```text
-LogBook
+LogBook                         authoritative history
    |
-   |  committed TimingData records
    v
-RegistrationList
+RegistrationList               retained ADD rows for active WP
    |
-   |  elapsed times of valid/rankable registrations
-   v
-RankingIndex
+   +-- RegistrationIndex       counts / onlyValidRow / current start
+   |
+   +-- RankingIndex            valid known elapsed times
+   |
+   +-- RegistrationMutations   live display-sync changes
 ```
+
+RegistrationList is the primary in-memory registration storage. The other three structures
+only accelerate lookup/ranking/synchronization and do not duplicate the LogBook.
 
 ### LogBook
 
@@ -469,7 +473,7 @@ LogBook                         authoritative history
    v
 RegistrationList             retained ADD rows for active WP
    |
-   +-- registration lookup      validCount + fast single position
+   +-- RegistrationIndex       validCount + onlyValidRow + current start
    |        |
    |        +-- unique registration counts
    |
