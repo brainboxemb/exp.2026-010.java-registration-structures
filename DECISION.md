@@ -67,10 +67,22 @@ https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions
 
 Both custom candidates have effectively zero steady-state allocation in these JMH paths.
 
-The AVL is faster at pure rank lookup and about 0.56 µs faster for a complete 500-row
-snapshot. SortedArray is materially faster for ranking mutations and also faster for the
-normal single-row start-change+sync path. The exceptional multiple-row path is effectively
-tied.
+A second candidate-only forked run provides a useful cross-check:
+
+https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40858497640
+
+Across both forked runs the robust pattern is:
+
+- pooled AVL wins the pure rank-read benchmark;
+- SortedArray wins the ranking mutation roundtrip;
+- SortedArray wins the normal single-row start-change + sync path;
+- single/multiple registration sync is effectively dominated by RegistrationList/Index;
+- the small snapshot and exceptional multiple-row differences are not stable enough to drive
+  the architecture decision.
+
+For example, the full run measured the AVL snapshot about 0.56 µs faster, while the second
+runner reduced that gap to about 0.09 µs. The exceptional start-path winner also changed
+between runs. Those small read-path differences do not justify the extra tree/pool complexity.
 
 ### Retained object graph
 
