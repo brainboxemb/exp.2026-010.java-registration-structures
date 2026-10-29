@@ -5,6 +5,10 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT=${OUT_DIR:-"$ROOT/pi-results"}
 JAVA_OPTS=${JAVA_OPTS:-"-Xms32m -Xmx192m -XX:+UseSerialGC"}
 RUN_JMH=${RUN_JMH:-1}
+JMH_FORKS=${JMH_FORKS:-2}
+JMH_WARMUPS=${JMH_WARMUPS:-3}
+JMH_ITERATIONS=${JMH_ITERATIONS:-5}
+JMH_TIME=${JMH_TIME:-500ms}
 
 MAIN_JAR="$ROOT/experiment-010.jar"
 JMH_JAR="$ROOT/experiment-010-jmh.jar"
@@ -100,6 +104,10 @@ capture_environment after
     echo "utc_finished=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "java_opts=$JAVA_OPTS"
     echo "run_jmh=$RUN_JMH"
+    echo "jmh_forks=$JMH_FORKS"
+    echo "jmh_warmups=$JMH_WARMUPS"
+    echo "jmh_iterations=$JMH_ITERATIONS"
+    echo "jmh_time=$JMH_TIME"
     echo "result_dir=$OUT"
 } >"$OUT/run.txt"
 
