@@ -19,7 +19,6 @@ RegistrationIndex
     1024 slots
     retainedCount + onlyRetainedRow
     validCount + onlyValidRow
-    current compact start
 
 RankingIndex
     SortedArrayRanking
@@ -37,6 +36,10 @@ Only subsequent live changes enter RegistrationMutations.
 RegistrationList passage times are absolute UTC epoch milliseconds. Stage starts use the
 production compact UTC representation (dated or time-only), and elapsed milliseconds are
 cached using production StageTiming rules.
+
+RaceData remains authoritative for the current stage start per registrationId. The current
+start is supplied to RegistrationList when an ADD is retained; RegistrationIndex does not
+duplicate that state.
 
 Rank is calculated at read time and is never stored in registration rows.
 
