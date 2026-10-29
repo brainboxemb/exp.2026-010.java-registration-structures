@@ -22,7 +22,7 @@ final class RegistrationListTest {
             RegistrationList list = list(kind, 8, 16, 16);
 
 
-            list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+            list.add(1, A1, passage(100), start(0));
             list.add(2, A2, passage(100), start(0));
             list.add(3, A3, passage(200), start(0));
 
@@ -51,7 +51,7 @@ final class RegistrationListTest {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 16);
 
-            assertEquals(0, list.add(1, A1, passage(100), RegistrationList.NO_TIME));
+            assertEquals(0, list.add(1, A1, passage(100), start(0)));
             assertEquals(1, list.validCount(A1));
 
             assertEquals(1, list.add(2, A1, passage(200), start(0)));
@@ -77,7 +77,7 @@ final class RegistrationListTest {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 16);
 
-            list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+            list.add(1, A1, passage(100), start(0));
             list.add(2, A1, passage(200), start(0));
             list.add(3, A2, passage(150), start(0));
 
@@ -163,8 +163,7 @@ final class RegistrationListTest {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
         long passage = Instant.parse("2026-10-30T12:00:00Z").toEpochMilli();
 
-        assertTrue(list.setStart(A1, 00_00_00_00L));
-        list.add(1, A1, passage, 23_50_00_00L);
+        list.add(1, A1, passage, 00_00_00_00L);
 
         final long[] observed = new long[2];
         list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
@@ -181,8 +180,7 @@ final class RegistrationListTest {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
         long passage = Instant.parse("2026-01-01T00:00:10Z").toEpochMilli();
 
-        assertTrue(list.setStart(A1, 2025_12_31_23_59_50_00L));
-        list.add(1, A1, passage, 23_50_00_00L);
+        list.add(1, A1, passage, 2025_12_31_23_59_50_00L);
 
         final long[] observed = new long[2];
         list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
@@ -201,7 +199,7 @@ final class RegistrationListTest {
 
 
             list.beginInitialLoad();
-            list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+            list.add(1, A1, passage(100), start(0));
             list.add(2, A2, passage(200), start(0));
             list.add(3, A1, passage(300), start(0));
             assertTrue(list.revoke(4, A1, passage(300)));
@@ -238,7 +236,7 @@ final class RegistrationListTest {
     void snapshotMarkerAndMutationStreamFormOneSynchronizationCursor() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 3);
 
-        list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+        list.add(1, A1, passage(100), start(0));
         list.add(2, A2, passage(200), RegistrationList.NO_TIME);
 
         List<String> snapshotRows = new ArrayList<String>();
