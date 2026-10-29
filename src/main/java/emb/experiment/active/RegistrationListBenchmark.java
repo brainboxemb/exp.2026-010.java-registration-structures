@@ -437,14 +437,15 @@ public final class RegistrationListBenchmark {
         int rows = ids * 2;
 
         RegistrationList list = emptyList(kind, rows);
-        for (int i = 0; i < ids; i++)
-            list.setStart(registrationId(i), BASE_START);
-
         long sequence = 0;
         for (int i = 0; i < ids; i++)
-            list.add(++sequence, registrationId(i), passage(i));
+            list.add(++sequence, registrationId(i), passage(i), BASE_START);
         for (int i = 0; i < ids; i++)
-            list.add(++sequence, registrationId(i), passage(i) + 1_000_000L);
+            list.add(
+                    ++sequence,
+                    registrationId(i),
+                    passage(i) + 1_000_000L,
+                    BASE_START);
 
         long beforeBytes = meter.allocatedBytes();
         long before = System.nanoTime();
@@ -528,10 +529,7 @@ public final class RegistrationListBenchmark {
         list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
-            list.setStart(registrationId(i), BASE_START);
-
-        for (int i = 0; i < population; i++)
-            list.add(i + 1L, registrationId(i), passage(i));
+            list.add(i + 1L, registrationId(i), passage(i), BASE_START);
 
         list.finishInitialLoad();
         return list;
