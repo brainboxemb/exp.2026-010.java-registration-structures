@@ -43,6 +43,7 @@ public final class RegistrationList {
 
     private int size;
     private int rowGrowthEvents;
+    private boolean initialLoading;
     private long lastLogSequence;
     private long fastRevokeCount;
     private long scannedRevokeCount;
@@ -70,6 +71,26 @@ public final class RegistrationList {
         index = new RegistrationIndex(indexCapacity);
         mutations = new RegistrationMutations(mutationCapacity);
         this.ranking = ranking;
+    }
+
+    /**
+     * Begin one silent historical load into a new RegistrationList.
+     *
+     * ADD/REV/start changes still build list/index/ranking state, but do not
+     * create display mutations. finishInitialLoad() prepares ranking once.
+     */
+    public void beginInitialLoad() {
+        if (initialLoading || size != 0 || lastLogSequence != 0 || mutations.latestRevision() != 0)
+            throw new IllegalStateException("initial load requires a new empty RegistrationList");
+        initialLoading = true;
+    }
+
+    public void finishInitialLoad() {
+        if (!initialLoading)
+            throw new IllegalStateException("initial load was not started");
+
+        ranking.prepare();
+        initialLoading = false;
     }
 
     /**
@@ -101,10 +122,12 @@ public final class RegistrationList {
             ranking.add(elapsedTime);
 
         lastLogSequence = logSequence;
-        mutations.append(
-                RegistrationMutations.Kind.ROW_ADDED,
-                row,
-                rankingChanged ? RegistrationMutations.RANKING_CHANGED : 0);
+        if (!initialLoading) {
+            mutations.append(
+                    RegistrationMutations.Kind.ROW_ADDED,
+                    row,
+                    rankingChanged ? RegistrationMutations.RANKING_CHANGED : 0);
+        }
 
         return row;
     }
@@ -154,7 +177,7 @@ public final class RegistrationList {
             return false;
 
         boolean rankingChanged = recalculateRowsForStart(registrationId, startTime);
-        if (index.retainedCount(slot) > 0) {
+        if (!initialLoading && index.retainedCount(slot) > 0) {
             mutations.append(
                     RegistrationMutations.Kind.START_CHANGED,
                     registrationId,
@@ -172,7 +195,7 @@ public final class RegistrationList {
             return false;
 
         boolean rankingChanged = recalculateRowsForStart(registrationId, NO_TIME);
-        if (index.retainedCount(slot) > 0) {
+        if (!initialLoading && index.retainedCount(slot) > 0) {
             mutations.append(
                     RegistrationMutations.Kind.START_CHANGED,
                     registrationId,
@@ -185,6 +208,7 @@ public final class RegistrationList {
      * Visit a range directly from primitive storage. No result list is created.
      */
     public int visitRows(int firstRow, int limit, Visitor visitor) {
+        requireReadable();
         if (firstRow < 0 || firstRow > size || limit < 0 || visitor == null)
             throw new IllegalArgumentException("invalid registration visit");
 
@@ -200,6 +224,7 @@ public final class RegistrationList {
 
     /** Visit exactly one stable row, typically referenced by a row mutation. */
     public void visitRow(int row, Visitor visitor) {
+        requireReadable();
         if (row < 0 || row >= size || visitor == null)
             throw new IllegalArgumentException("invalid registration row");
 
@@ -214,6 +239,7 @@ public final class RegistrationList {
      * maintaining a second per-id position collection.
      */
     public int visitRegistration(int registrationId, Visitor visitor) {
+        requireReadable();
         if (registrationId == 0 || visitor == null)
             throw new IllegalArgumentException("invalid registration visit");
 
@@ -237,6 +263,7 @@ public final class RegistrationList {
      * itself creates no snapshot list or row objects.
      */
     public long visitSnapshot(Visitor visitor) {
+        requireReadable();
         if (visitor == null)
             throw new IllegalArgumentException("visitor must not be null");
 
@@ -254,6 +281,7 @@ public final class RegistrationList {
             int limit,
             RegistrationMutations.Visitor visitor) {
 
+        requireReadable();
         return mutations.visitAfter(revision, limit, visitor);
     }
 
@@ -394,10 +422,12 @@ public final class RegistrationList {
             index.setOnlyValidRow(lookupSlot, remainingRow);
         }
 
-        mutations.append(
-                RegistrationMutations.Kind.ROW_REVOKED,
-                row,
-                elapsedTime != NO_TIME ? RegistrationMutations.RANKING_CHANGED : 0);
+        if (!initialLoading) {
+            mutations.append(
+                    RegistrationMutations.Kind.ROW_REVOKED,
+                    row,
+                    elapsedTime != NO_TIME ? RegistrationMutations.RANKING_CHANGED : 0);
+        }
     }
 
     /**
@@ -430,6 +460,11 @@ public final class RegistrationList {
         if (startTime == NO_TIME || passageTime < startTime)
             return NO_TIME;
         return passageTime - startTime;
+    }
+
+    private void requireReadable() {
+        if (initialLoading)
+            throw new IllegalStateException("initial LogBook load is not finished");
     }
 
     private void requireNextLogSequence(long logSequence) {
