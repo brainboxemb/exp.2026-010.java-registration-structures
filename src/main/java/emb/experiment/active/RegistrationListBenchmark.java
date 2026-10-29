@@ -148,7 +148,7 @@ public final class RegistrationListBenchmark {
                     () -> multiRegistrationRevokeListOnly(population, meter));
 
             int startChanges = Math.min(population, 256);
-            report("start_change_scan", "LIST_ONLY", population, startChanges,
+            report("start_change_single", "LIST_ONLY", population, startChanges,
                     () -> startChangesListOnly(population, startChanges, meter));
 
             report("snapshot_rows", "LIST_ONLY", population, population,
@@ -172,7 +172,7 @@ public final class RegistrationListBenchmark {
                         () -> multiRegistrationRevoke(kind, population, meter));
 
                 int startChanges = Math.min(population, 256);
-                report("start_change_scan", kind.name(), population, startChanges,
+                report("start_change_single", kind.name(), population, startChanges,
                         () -> startChanges(kind, population, startChanges, meter));
 
                 report("snapshot_rows", kind.name(), population, population,
