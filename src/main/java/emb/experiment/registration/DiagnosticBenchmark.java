@@ -81,8 +81,8 @@ public final class DiagnosticBenchmark {
         if (!ok) throw new IllegalStateException(message);
     }
 
-    private static RegistrationProjection initialized(RegistrationProjection.RankingMode mode, int n) {
-        RegistrationProjection p = new RegistrationProjection(mode, INITIAL_CAPACITY);
+    private static ProjectionModel initialized(ModelKind mode, int n) {
+        ProjectionModel p = mode.create(INITIAL_CAPACITY);
         for (int id = 0; id < STAGES; id++) p.setStart(id, START);
         for (int i = 1; i <= n; i++) {
             int id = i % STAGES;
@@ -117,9 +117,9 @@ public final class DiagnosticBenchmark {
         return result;
     }
 
-    private static Measurement run(RegistrationProjection.RankingMode mode, int n,
+    private static Measurement run(ModelKind mode, int n,
                                    Event[] events, Meter meter, int pageEvery) {
-        RegistrationProjection p = initialized(mode, n);
+        ProjectionModel p = initialized(mode, n);
         Visitor visitor = new Visitor();
         int matchedRevs = 0;
         long allocatedStart = meter.allocated();
@@ -147,10 +147,10 @@ public final class DiagnosticBenchmark {
         return new Measurement(elapsed, bytes, checksum, p.rowGrowthEvents(), p.rankGrowthEvents());
     }
 
-    private static Measurement fill(RegistrationProjection.RankingMode mode, int n, Meter meter) {
+    private static Measurement fill(ModelKind mode, int n, Meter meter) {
         long startBytes = meter.allocated();
         long start = System.nanoTime();
-        RegistrationProjection p = initialized(mode, n);
+        ProjectionModel p = initialized(mode, n);
         long nanos = System.nanoTime() - start;
         long bytes = meter.delta(startBytes);
         escape ^= p.size() + p.rankableCount();
@@ -158,8 +158,8 @@ public final class DiagnosticBenchmark {
                 p.size() * 101L + p.rankableCount(), p.rowGrowthEvents(), p.rankGrowthEvents());
     }
 
-    private static Measurement growth(RegistrationProjection.RankingMode mode, Meter meter) {
-        RegistrationProjection p = initialized(mode, 512);
+    private static Measurement growth(ModelKind mode, Meter meter) {
+        ProjectionModel p = initialized(mode, 512);
         long startBytes = meter.allocated();
         long start = System.nanoTime();
         p.add(513L, 10, START + 120_000L);
@@ -171,13 +171,13 @@ public final class DiagnosticBenchmark {
                 p.size() * 101L + p.rankableCount(), p.rowGrowthEvents(), p.rankGrowthEvents());
     }
 
-    private static Measurement constructor(RegistrationProjection.RankingMode mode, Meter meter) {
+    private static Measurement constructor(ModelKind mode, Meter meter) {
         final int repeat = 100;
         long sum = 0;
         long startBytes = meter.allocated();
         long start = System.nanoTime();
         for (int i = 0; i < repeat; i++) {
-            RegistrationProjection p = new RegistrationProjection(mode, INITIAL_CAPACITY);
+            ProjectionModel p = mode.create(INITIAL_CAPACITY);
             sum += p.rowCapacity() + p.rankableCount();
         }
         long nanos = System.nanoTime() - start;
@@ -188,7 +188,7 @@ public final class DiagnosticBenchmark {
 
     private interface Measure { Measurement get(); }
 
-    private static void report(String scenario, RegistrationProjection.RankingMode mode,
+    private static void report(String scenario, ModelKind mode,
                                int population, int operations, Measure f) {
         Measurement[] measurements = new Measurement[WARMUP + SAMPLES];
         for (int i = 0; i < measurements.length; i++) measurements[i] = f.get();
@@ -225,7 +225,7 @@ public final class DiagnosticBenchmark {
                 + ";cores=" + Runtime.getRuntime().availableProcessors());
         System.out.println("scenario,mode,population,operations,median_ns_per_operation,"
                 + "median_allocated_bytes_per_operation,row_growth_events,rank_growth_events,checksum");
-        for (RegistrationProjection.RankingMode mode : RegistrationProjection.RankingMode.values()) {
+        for (ModelKind mode : RegistrationProjection.RankingMode.values()) {
             report("construct_512", mode, 0, 100, () -> constructor(mode, meter));
             report("grow_512_to_513", mode, 513, 1, () -> growth(mode, meter));
             for (int n : populations) {
