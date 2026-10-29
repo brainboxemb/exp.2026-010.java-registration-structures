@@ -156,6 +156,33 @@ JVM array/object headers and alignment are excluded.
 The TreeMap and pooled-AVL representations have different object overhead and need retained
 heap profiling for a fair full-memory comparison.
 
+## Direct single-row path versus exceptional multiple-row scan
+
+Final diagnostic run for the selected list/index shape:
+
+https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40857675660
+
+At 500 retained rows:
+
+| Operation | LIST_ONLY | Sorted array | Pooled AVL |
+| --- | ---: | ---: | ---: |
+| Direct REV, one valid row | 0.365 µs | — | — |
+| Exceptional REV scan | 1.452 µs | — | — |
+| Start change, one retained row | 0.270 µs | 0.283 µs | 0.231 µs |
+| Start change, two retained rows/id | 2.318 µs | 3.325 µs | 0.997 µs |
+| Snapshot row | 56.7 ns | — | — |
+| Mutation-ring entry | 245 ns | — | — |
+
+All shown LIST_ONLY/custom start-change paths report **0 allocated bytes/op**.
+
+These absolute values are still noisy CI diagnostics. The architectural point is stable:
+
+- normal single-row start/sync work is direct through `onlyRetainedRow`;
+- multiple retained rows remain the exceptional scan path;
+- no dynamic per-registration row-position collection is needed for the common case.
+
+The full JMH suite separately measures the same single/multiple split with forks/warmup.
+
 ## Allocation follow-up: compact production stage starts
 
 A later diagnostic run after production StageTiming parity and the retained-row fast path:
