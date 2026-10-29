@@ -1,4 +1,4 @@
-name: Ranking diagnostics
+name: Experiment diagnostics
 
 on:
   workflow_dispatch:
