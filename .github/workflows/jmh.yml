@@ -6,6 +6,7 @@ on:
     branches:
       - experiment/ranking-structures-clean
     paths:
+      - src/main/**
       - src/jmh/**
       - .github/workflows/jmh.yml
       - pom.xml
