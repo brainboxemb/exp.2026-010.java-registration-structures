@@ -50,9 +50,9 @@ elapsedTime
 valid
 ```
 
-For efficient physical storage, `startTime` may be stored once per registrationId in the
-lookup structure rather than duplicated in every retained row. `elapsedTime` remains cached
-per row because passage times differ and it is read frequently.
+`startTime` and `elapsedTime` are both cached in every retained row so a visitor/snapshot
+can read one row without another index lookup. RegistrationIndex also retains the **current**
+start time per registrationId so a later ADD can initialize its row directly.
 
 The row deliberately does **not** contain `rank`.
 
@@ -127,15 +127,17 @@ Storing rank inside every registration would therefore require rewriting many un
 When a timing point becomes active:
 
 ```text
-1. create empty RegistrationList
-2. create empty RankingIndex
+1. create empty RegistrationList + RankingIndex + RegistrationMutations
+2. call RegistrationList.beginInitialLoad()
 3. read/replay relevant LogBook history
 4. keep only ADD rows for the active location
 5. apply matching REV records to those rows
-6. resolve current start time for each retained ADD
-7. calculate/copy elapsedTime into each registration
-8. add every valid known elapsedTime to RankingIndex
-9. RegistrationList + RankingIndex are now ready for visitors
+6. resolve/cache startTime + elapsedTime for each retained ADD
+7. add every valid known elapsedTime to RankingIndex
+8. call RegistrationList.finishInitialLoad()
+9. historical replay has produced **zero display mutations**
+10. take the first snapshot; its mutation marker is 0
+11. only subsequent live changes create mutation revisions 1, 2, 3...
 ```
 
 The implementation may optimize how step 8 is built, but the resulting state must be identical.
@@ -321,7 +323,9 @@ RegistrationList
        +---- RegistrationMutations
 ```
 
-Every display-relevant live mutation gets one increasing mutation revision.
+Every display-relevant **live** mutation gets one increasing mutation revision.
+Historical LogBook replay during `beginInitialLoad()/finishInitialLoad()` is deliberately
+silent; the first full snapshot is the synchronization baseline.
 
 For example:
 
@@ -517,7 +521,7 @@ Key rules:
 - RegistrationList is append-only while a WP is active;
 - REV invalidates a stable row instead of deleting/shifting it;
 - row bulk data is stored in primitive arrays;
-- start time is stored once per registrationId in the primitive lookup table;
+- current start time is retained in RegistrationIndex and cached in each row;
 - the lookup keeps validCount + onlyValidRow for the common O(1) REV path;
 - exceptional multi-registration cases may scan the ~500-row list;
 - RankingIndex contains only rankable elapsed times;
