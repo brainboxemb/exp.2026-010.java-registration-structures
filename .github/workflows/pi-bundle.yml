@@ -40,12 +40,22 @@ jobs:
 
       - name: Add runner and checksums
         run: |
+          sh -n scripts/run-pi-qualification.sh
           cp scripts/run-pi-qualification.sh out/
           chmod +x out/run-pi-qualification.sh
           cd out
           sha256sum experiment-010.jar experiment-010-jmh.jar run-pi-qualification.sh > BUNDLE-SHA256SUMS
           cat BUNDLE-SHA256SUMS
           ls -lh
+
+      - name: Smoke-run packaged bundle
+        run: |
+          cd out
+          RUN_JMH=0 OUT_DIR=ci-smoke-results ./run-pi-qualification.sh
+          test -s ci-smoke-results/ranking-500.csv
+          test -s ci-smoke-results/registration-list-500.csv
+          test -s ci-smoke-results/environment-before.txt
+          test -s ci-smoke-results/environment-after.txt
 
       - uses: actions/upload-artifact@v4
         with:
