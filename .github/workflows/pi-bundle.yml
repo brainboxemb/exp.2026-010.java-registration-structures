@@ -1,0 +1,58 @@
+name: Pi Zero qualification bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/ranking-structures-clean
+    paths:
+      - src/main/**
+      - src/jmh/**
+      - scripts/run-pi-qualification.sh
+      - PI.md
+      - pom.xml
+      - .github/workflows/pi-bundle.yml
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Verify Java 8-compatible experiment
+        run: mvn -B verify
+
+      - name: Package normal experiment jar
+        run: |
+          mvn -B -DskipTests package
+          mkdir -p out
+          cp target/java-registration-structures-0.1.0-SNAPSHOT.jar out/experiment-010.jar
+
+      - name: Package JMH jar
+        run: |
+          mvn -B -Pjmh -DskipTests package
+          cp target/benchmarks.jar out/experiment-010-jmh.jar
+
+      - name: Add runner and checksums
+        run: |
+          cp scripts/run-pi-qualification.sh out/
+          chmod +x out/run-pi-qualification.sh
+          cd out
+          sha256sum experiment-010.jar experiment-010-jmh.jar run-pi-qualification.sh > BUNDLE-SHA256SUMS
+          cat BUNDLE-SHA256SUMS
+          ls -lh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experiment-010-pi-bundle
+          path: |
+            out/experiment-010.jar
+            out/experiment-010-jmh.jar
+            out/run-pi-qualification.sh
+            out/BUNDLE-SHA256SUMS
+          retention-days: 30
