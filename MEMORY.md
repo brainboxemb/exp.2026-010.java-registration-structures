@@ -481,7 +481,7 @@ slots, 1024 mutation slots and a 512-entry sorted ranking array, primitive paylo
 | Structure | Primitive payload |
 | --- | ---: |
 | RegistrationList row arrays (1024) | 37,888 bytes |
-| RegistrationIndex arrays (1024) | 24,576 bytes |
+| RegistrationIndex arrays (1024) | 28,672 bytes |
 | RegistrationMutations arrays (1024) | 6,144 bytes |
 | Sorted RankingIndex long[] (512) | 4,096 bytes |
 | **Total** | **76,800 bytes** |
