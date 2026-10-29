@@ -38,13 +38,20 @@ jobs:
           mvn -B -Pjmh -DskipTests package
           cp target/benchmarks.jar out/experiment-010-jmh.jar
 
-      - name: Add runner and checksums
+      - name: Add runner, identity and checksums
         run: |
           sh -n scripts/run-pi-qualification.sh
           cp scripts/run-pi-qualification.sh out/
           chmod +x out/run-pi-qualification.sh
+          {
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "commit=$GITHUB_SHA"
+            echo "java_source_target=8"
+            echo "bundle_workflow=Pi Zero qualification bundle"
+          } > out/BUNDLE-INFO
           cd out
-          sha256sum experiment-010.jar experiment-010-jmh.jar run-pi-qualification.sh > BUNDLE-SHA256SUMS
+          sha256sum experiment-010.jar experiment-010-jmh.jar run-pi-qualification.sh BUNDLE-INFO > BUNDLE-SHA256SUMS
+          cat BUNDLE-INFO
           cat BUNDLE-SHA256SUMS
           ls -lh
 
@@ -71,5 +78,6 @@ jobs:
             out/experiment-010.jar
             out/experiment-010-jmh.jar
             out/run-pi-qualification.sh
+            out/BUNDLE-INFO
             out/BUNDLE-SHA256SUMS
           retention-days: 30
