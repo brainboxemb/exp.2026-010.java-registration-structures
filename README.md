@@ -7,6 +7,12 @@ Together they define what belongs in the LogBook, RegistrationList,
 RegistrationIndex, RankingIndex and RegistrationMutations, including how to
 avoid unnecessary object churn, list copies and full-list rewrites.
 
+The branch now contains working experimental implementations of those structures:
+- `RegistrationList`: append-only primitive row arrays;
+- `RegistrationIndex`: primitive per-registrationId lookup/count/start metadata;
+- `RegistrationMutations`: bounded primitive mutation ring;
+- interchangeable `RankingIndex` implementations.
+
 Once that flow is clear, this repository answers one concrete implementation question:
 
 > **Which data structure is a good fit for maintaining competition ranking for roughly 500 timing registrations in Java?**
@@ -79,12 +85,23 @@ selection also requires repeated/forked measurements and Pi Zero qualification.
 Start here:
 
 ```text
+FLOW.md
+MEMORY.md
+
+RegistrationList.java
+RegistrationIndex.java
+RegistrationMutations.java
+
 RankingIndex.java
-RankingTest.java
 RebuildSortRanking.java
 SortedArrayRanking.java
 TreeMapRanking.java
 PooledAvlRanking.java
+
+RegistrationListTest.java
+RankingTest.java
+
+RegistrationListBenchmark.java
 RankingBenchmark.java
 ```
 
