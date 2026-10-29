@@ -7,6 +7,7 @@ on:
       - experiment/ranking-structures-clean
     paths:
       - src/main/java/emb/experiment/ranking/**
+      - src/main/java/emb/experiment/active/**
       - .github/workflows/benchmark.yml
       - pom.xml
 
@@ -21,12 +22,18 @@ jobs:
           java-version: '17'
           cache: maven
       - run: mvn -B verify
-      - name: Run diagnostic benchmark
+      - name: Run ranking diagnostic
         run: |
           java -cp target/classes emb.experiment.ranking.RankingBenchmark > ranking.csv
           cat ranking.csv
+      - name: Run RegistrationList diagnostic
+        run: |
+          java -cp target/classes emb.experiment.active.RegistrationListBenchmark > registration-list.csv
+          cat registration-list.csv
       - uses: actions/upload-artifact@v4
         with:
-          name: ranking-diagnostics
-          path: ranking.csv
+          name: experiment-010-diagnostics
+          path: |
+            ranking.csv
+            registration-list.csv
           retention-days: 30
