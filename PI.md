@@ -105,9 +105,11 @@ The selected JMH paths are:
 
 - pure rank lookup;
 - replace/prepare/rank/restore;
-- per-registration synchronization scan;
+- single-retained-row synchronization fast path;
+- multiple-retained-row synchronization scan path;
 - 500-row snapshot;
-- start-change + synchronization roundtrip.
+- single-row start-change + synchronization roundtrip;
+- multiple-row start-change + synchronization roundtrip.
 
 The Pi JMH run is deliberately shorter than the desktop evidence:
 
