@@ -1,0 +1,25 @@
+name: Ranking diagnostics
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - run: mvn -B verify
+      - name: Run diagnostic benchmark
+        run: |
+          java -cp target/classes emb.experiment.ranking.RankingBenchmark > ranking.csv
+          cat ranking.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ranking-diagnostics
+          path: ranking.csv
+          retention-days: 30
