@@ -510,6 +510,7 @@ public final class RegistrationListBenchmark {
     }
 
     private static RegistrationList emptyListOnly(int population) {
+        int rowCapacity = normalCapacity(population);
         int indexCapacity = nextPowerOfTwo(Math.max(2, population * 2));
         int mutationCapacity = nextPowerOfTwo(Math.max(8, population * 2));
 
@@ -548,7 +549,6 @@ public final class RegistrationListBenchmark {
             RankingIndexKind kind,
             int population,
             int rowCapacity) {
-        int rowCapacity = normalCapacity(population);
         int indexCapacity = nextPowerOfTwo(Math.max(2, population * 2));
         int mutationCapacity = nextPowerOfTwo(Math.max(8, population * 2));
 
