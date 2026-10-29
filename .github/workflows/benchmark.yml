@@ -2,6 +2,13 @@ name: Ranking diagnostics
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - experiment/ranking-structures-clean
+    paths:
+      - src/main/java/emb/experiment/ranking/**
+      - .github/workflows/benchmark.yml
+      - pom.xml
 
 jobs:
   benchmark:
