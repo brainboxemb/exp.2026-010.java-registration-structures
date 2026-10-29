@@ -30,6 +30,30 @@ A compatible Java runtime must already be present on the target. The script reco
 The first physical target is the original Raspberry Pi Zero W (ARMv6, 512 MB) running the
 32-bit Brainbox Zero image.
 
+## Java runtime candidate
+
+ARMv6 is the limiting factor, not the Experiment 010 bytecode. The experiment is compiled for
+Java 8 and can run on a newer compatible JVM, but many modern ARM32 JVM builds target ARMv7+.
+
+The first runtime candidate for the physical Zero W is **Azul Zulu 11 for Linux
+aarch32 hard-float**.
+
+Why:
+
+- Pi4J documents Zulu 11 as an ARMv6-compatible JVM for the original Pi/Zero;
+- Azul still publishes current Zulu 11 `linux_aarch32hf` tarballs;
+- Azul's platform matrix explicitly says Zulu 17+ ARM32 hard-float is ARMv7/ARMv8 only.
+
+Do not bake that runtime into Brainbox Zero or auto-download it from the qualification script
+yet. First validate it manually on the current Trixie image. After that, pin the exact runtime
+archive + SHA-256 in whichever repository ultimately owns the runtime installation.
+
+Current references:
+
+- https://www.pi4j.com/documentation/java-for-arm/
+- https://docs.azul.com/core/supported-platforms
+- https://cdn.azul.com/zulu/bin/
+
 ## Build/download the bundle
 
 GitHub Actions workflow:
