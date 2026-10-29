@@ -1,7 +1,8 @@
 # Experiment 010 — Java registration and ranking structures
 
-**Start with [FLOW.md](FLOW.md)** for the functional flow and
-**[MEMORY.md](MEMORY.md)** for the concrete memory/search structures.
+**Start with [FLOW.md](FLOW.md)** for the functional flow,
+**[MEMORY.md](MEMORY.md)** for the concrete memory/search structures, and
+**[DECISION.md](DECISION.md)** for the current evidence-based architecture choice.
 
 Together they define what belongs in the LogBook, RegistrationList,
 RegistrationIndex, RankingIndex and RegistrationMutations, including how to
@@ -12,6 +13,9 @@ The branch now contains working experimental implementations of those structures
 - `RegistrationIndex`: primitive per-registrationId lookup/count/start metadata;
 - `RegistrationMutations`: bounded primitive mutation ring;
 - interchangeable `RankingIndex` implementations.
+
+The current preferred candidate is **SortedArrayRanking**: a sorted primitive `long[]`
+behind the fixed RegistrationList/RegistrationIndex/RegistrationMutations design.
 
 Once that flow is clear, this repository answers one concrete implementation question:
 
@@ -97,6 +101,7 @@ Start here:
 ```text
 FLOW.md
 MEMORY.md
+DECISION.md
 
 RegistrationList.java
 RegistrationIndex.java
