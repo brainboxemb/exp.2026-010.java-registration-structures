@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.*;
 final class RankingTest {
     @Test
     void competitionRankingAndDuplicatesAreIdenticalForEverySolution() {
-        for (RankingKind kind : RankingKind.values()) {
-            Ranking ranking = kind.create(8);
+        for (RankingIndexKind kind : RankingIndexKind.values()) {
+            RankingIndex ranking = kind.create(8);
 
             ranking.add(10);
             ranking.add(10);
@@ -45,8 +45,8 @@ final class RankingTest {
 
     @Test
     void randomOperationsMatchIndependentListOracle() {
-        for (RankingKind kind : RankingKind.values()) {
-            Ranking ranking = kind.create(16);
+        for (RankingIndexKind kind : RankingIndexKind.values()) {
+            RankingIndex ranking = kind.create(16);
             List<Long> oracle = new ArrayList<Long>();
             Random random = new Random(0x2026010L);
 
@@ -85,12 +85,12 @@ final class RankingTest {
 
     @Test
     void explicitCapacityGrowthIsVisibleForCustomStructures() {
-        for (RankingKind kind : RankingKind.values()) {
-            Ranking ranking = kind.create(2);
+        for (RankingIndexKind kind : RankingIndexKind.values()) {
+            RankingIndex ranking = kind.create(2);
             ranking.add(10);
             ranking.add(20);
 
-            if (kind == RankingKind.TREE_MAP) {
+            if (kind == RankingIndexKind.TREE_MAP) {
                 assertEquals(-1, ranking.capacity());
                 assertEquals(-1, ranking.growthEvents());
                 continue;
@@ -107,7 +107,7 @@ final class RankingTest {
 
     @Test
     void pooledAvlDuplicatesDoNotConsumeAdditionalNodes() {
-        Ranking ranking = new PooledAvlRanking(2);
+        RankingIndex ranking = new PooledAvlRanking(2);
         for (int i = 0; i < 1000; i++)
             ranking.add(1234);
 
@@ -120,8 +120,8 @@ final class RankingTest {
 
     @Test
     void negativeElapsedTimesAreRejected() {
-        for (RankingKind kind : RankingKind.values()) {
-            Ranking ranking = kind.create(8);
+        for (RankingIndexKind kind : RankingIndexKind.values()) {
+            RankingIndex ranking = kind.create(8);
             assertThrows(IllegalArgumentException.class, () -> ranking.add(-1), kind.name());
             assertThrows(IllegalArgumentException.class, () -> ranking.remove(-1), kind.name());
         }
