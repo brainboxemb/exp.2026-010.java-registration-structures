@@ -33,6 +33,7 @@ public final class RegistrationList {
     private long[] sequences;
     private int[] registrationIds;
     private long[] passageTimes;
+    private long[] startTimes;
     private long[] elapsedTimes;
     private byte[] flags;
 
@@ -60,8 +61,10 @@ public final class RegistrationList {
         sequences = new long[rowCapacity];
         registrationIds = new int[rowCapacity];
         passageTimes = new long[rowCapacity];
+        startTimes = new long[rowCapacity];
         elapsedTimes = new long[rowCapacity];
         flags = new byte[rowCapacity];
+        Arrays.fill(startTimes, NO_TIME);
         Arrays.fill(elapsedTimes, NO_TIME);
 
         index = new RegistrationIndex(indexCapacity);
@@ -87,6 +90,7 @@ public final class RegistrationList {
         sequences[row] = logSequence;
         registrationIds[row] = registrationId;
         passageTimes[row] = passageTime;
+        startTimes[row] = startTime;
         elapsedTimes[row] = elapsedTime;
         flags[row] = VALID;
 
@@ -288,8 +292,7 @@ public final class RegistrationList {
 
     private void visitRow(int row, Visitor visitor) {
         int registrationId = registrationIds[row];
-        int slot = index.findExistingSlot(registrationId);
-        long startTime = slot < 0 ? NO_TIME : index.startTime(slot);
+        long startTime = startTimes[row];
         long elapsedTime = elapsedTimes[row];
         boolean valid = isValid(row);
 
@@ -327,6 +330,7 @@ public final class RegistrationList {
                 rankingChanged = true;
             }
 
+            startTimes[row] = startTime;
             elapsedTimes[row] = newElapsed;
 
             if (isValid(row) && newElapsed != NO_TIME) {
@@ -407,9 +411,11 @@ public final class RegistrationList {
         sequences = Arrays.copyOf(sequences, next);
         registrationIds = Arrays.copyOf(registrationIds, next);
         passageTimes = Arrays.copyOf(passageTimes, next);
+        startTimes = Arrays.copyOf(startTimes, next);
         elapsedTimes = Arrays.copyOf(elapsedTimes, next);
         flags = Arrays.copyOf(flags, next);
 
+        Arrays.fill(startTimes, size, next, NO_TIME);
         Arrays.fill(elapsedTimes, size, next, NO_TIME);
         rowGrowthEvents++;
     }
