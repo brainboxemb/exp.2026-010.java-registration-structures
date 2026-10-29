@@ -217,14 +217,15 @@ public final class RegistrationListBenchmark {
         int ids = Math.max(1, population / 2);
         RegistrationList list = emptyListOnly(ids * 2);
 
-        for (int i = 0; i < ids; i++)
-            list.setStart(registrationId(i), BASE_START);
-
         long sequence = 0;
         for (int i = 0; i < ids; i++)
-            list.add(++sequence, registrationId(i), passage(i));
+            list.add(++sequence, registrationId(i), passage(i), BASE_START);
         for (int i = 0; i < ids; i++)
-            list.add(++sequence, registrationId(i), passage(i) + 1_000_000L);
+            list.add(
+                    ++sequence,
+                    registrationId(i),
+                    passage(i) + 1_000_000L,
+                    BASE_START);
 
         long beforeBytes = meter.allocatedBytes();
         long before = System.nanoTime();
@@ -315,6 +316,9 @@ public final class RegistrationListBenchmark {
         long displayCursor = list.latestMutationRevision();
         long checksum = 0;
 
+        long[] currentStarts = new long[500];
+        Arrays.fill(currentStarts, BASE_START);
+
         long[] mixedStarts = new long[64 * 4];
         for (int block = 0; block < 64; block++) {
             for (int i = 0; i < 4; i++) {
@@ -333,7 +337,11 @@ public final class RegistrationListBenchmark {
                 int idIndex = baseId + i;
                 long duplicatePassage =
                         passage(idIndex) + 1_000_000L + block * 10_000L + i;
-                list.add(++sequence, registrationId(idIndex), duplicatePassage);
+                list.add(
+                        ++sequence,
+                        registrationId(idIndex),
+                        duplicatePassage,
+                        currentStarts[idIndex]);
             }
 
             for (int i = 0; i < 4; i++) {
@@ -349,6 +357,7 @@ public final class RegistrationListBenchmark {
                 long start = mixedStarts[block * 4 + i];
                 if (!list.setStart(registrationId(idIndex), start))
                     throw new IllegalStateException("mixed workload start did not change");
+                currentStarts[idIndex] = start;
             }
 
             for (int sync = 0; sync < 3; sync++) {
@@ -381,9 +390,7 @@ public final class RegistrationListBenchmark {
         RegistrationList list = emptyList(kind, population);
         list.beginInitialLoad();
         for (int i = 0; i < population; i++)
-            list.setStart(registrationId(i), BASE_START);
-        for (int i = 0; i < population; i++)
-            list.add(i + 1L, registrationId(i), passage(i));
+            list.add(i + 1L, registrationId(i), passage(i), BASE_START);
         list.finishInitialLoad();
 
         long checksum = list.size() * 31L
