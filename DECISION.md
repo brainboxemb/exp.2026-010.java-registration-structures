@@ -64,15 +64,15 @@ start-change path is effectively tied.
 
 Memory probe:
 
-https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40852759348
+https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40852964909
 
 | Scope | Sorted array | Pooled AVL |
 | --- | ---: | ---: |
 | RankingIndex only | **4.05 KiB** | 26.07 KiB |
 | Complete 500-row RegistrationList graph | **71.44 KiB** | 93.45 KiB |
 
-JOL could not attach its Instrumentation/Serviceability Agent on this GitHub runner and
-reported its fallback object-graph estimate. The relative result is nevertheless consistent
+JOL self-attach was enabled successfully; the GitHub runner still disallows its
+Serviceability Agent. The retained object-graph measurement remained stable across both runs. The relative result is nevertheless consistent
 with the representations: SortedArray owns one primitive array while PooledAVL preallocates
 512 Node objects plus its node-reference array.
 
