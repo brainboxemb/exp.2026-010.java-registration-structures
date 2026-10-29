@@ -48,9 +48,14 @@ capture_environment() {
         echo "== brainbox zero =="
         cat /etc/brainbox-zero-image 2>/dev/null || echo "not present"
         echo
+        echo "== experiment bundle =="
+        cat "$ROOT/BUNDLE-INFO" 2>/dev/null || echo "not present"
+        echo
         echo "== java =="
         command -v java
         java -version
+        echo
+        java -XshowSettings:vm -version 2>&1 || true
         echo
         echo "== memory/load =="
         free -h 2>/dev/null || true
