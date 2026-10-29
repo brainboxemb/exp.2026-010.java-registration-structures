@@ -155,10 +155,8 @@ final class DisplaySynchronizationTest {
         RegistrationList source = list();
 
         source.beginInitialLoad();
-        source.setStart(A1, start(0));
-        source.setStart(A2, start(0));
-        source.add(1, A1, passage(100));
-        source.add(2, A2, passage(200));
+        source.add(1, A1, passage(100), start(0));
+        source.add(2, A2, passage(200), start(0));
         source.finishInitialLoad();
 
         DisplayReplica replica = new DisplayReplica();
@@ -166,8 +164,7 @@ final class DisplaySynchronizationTest {
         assertEquals(0, replica.cursor);
 
         // Faster ADD changes ranks of existing rows.
-        source.setStart(A3, start(0));
-        source.add(3, A3, passage(50));
+        source.add(3, A3, passage(50), start(0));
 
         // REV changes the rank set but keeps row 0 stable.
         assertTrue(source.revoke(4, A1, passage(100)));
@@ -194,8 +191,7 @@ final class DisplaySynchronizationTest {
 
         for (int i = 0; i < 12; i++) {
             int id = ('A' << 16) | (100 + i);
-            source.setStart(id, start(0));
-            source.add(i + 1L, id, passage(100 + i * 10L));
+            source.add(i + 1L, id, passage(100 + i * 10L), start(0));
         }
 
         source.finishInitialLoad();
