@@ -167,11 +167,12 @@ yet to change production.
 Remaining gates:
 
 1. run the selected structures on the Pi Zero;
-2. keep the new compact/time-only StageTiming parity tests green;
-3. map the documented LogBook ADD/REV/location filtering and OPEN replay contract into the
-   production adapter;
+2. add production regression fixtures for the documented LogBook kind/LocationId filtering,
+   OPEN replay and RegistrationId-to-TeamId semantics;
+3. introduce the production adapter while keeping the compact/time-only StageTiming parity
+   contract green;
 4. verify the actual display protocol/snapshot payload around the mutation cursor;
-5. then implement the production refactor with regression fixtures.
+5. then switch production storage/client synchronization and remove the old implementation.
 
 If Pi Zero measurements do not show a material contrary result, SortedArrayRanking should be
 the production RankingIndex implementation.
