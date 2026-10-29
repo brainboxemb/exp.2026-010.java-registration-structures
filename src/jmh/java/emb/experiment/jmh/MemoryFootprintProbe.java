@@ -53,7 +53,7 @@ public final class MemoryFootprintProbe {
             list.setStart(registrationId(i), BASE_START);
 
         for (int i = 0; i < 500; i++)
-            list.add(i + 1L, registrationId(i), passage(i));
+            list.add(i + 1L, registrationId(i), passage(i), BASE_START);
 
         list.finishInitialLoad();
         return list;
