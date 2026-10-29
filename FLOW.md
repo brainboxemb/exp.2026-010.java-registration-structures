@@ -15,7 +15,7 @@ LogBook
    |
    |  committed TimingData records
    v
-ActiveRegistrations
+RegistrationList
    |
    |  elapsed times of valid/rankable registrations
    v
@@ -31,9 +31,9 @@ other timing points.
 
 The ranking code must **not** become a second LogBook.
 
-### ActiveRegistrations
+### RegistrationList
 
-`ActiveRegistrations` contains only the registration rows relevant to the currently active
+`RegistrationList` contains only the registration rows relevant to the currently active
 timing point.
 
 A retained registration row represents the original ADD. A REV does not create another
@@ -63,7 +63,7 @@ The row deliberately does **not** contain `rank`.
 Conceptually:
 
 ```text
-ActiveRegistrations
+RegistrationList
 
 seq  id      passage    start      elapsed   valid
 101  A0001   12:30:12   12:00:00   30:12     true
@@ -127,7 +127,7 @@ Storing rank inside every registration would therefore require rewriting many un
 When a timing point becomes active:
 
 ```text
-1. create empty ActiveRegistrations
+1. create empty RegistrationList
 2. create empty RankingIndex
 3. read/replay relevant LogBook history
 4. keep only ADD rows for the active location
@@ -135,7 +135,7 @@ When a timing point becomes active:
 6. resolve current start time for each retained ADD
 7. calculate/copy elapsedTime into each registration
 8. add every valid known elapsedTime to RankingIndex
-9. ActiveRegistrations + RankingIndex are now ready for visitors
+9. RegistrationList + RankingIndex are now ready for visitors
 ```
 
 The implementation may optimize how step 8 is built, but the resulting state must be identical.
@@ -151,7 +151,7 @@ TimingData ADD
 append/commit to LogBook
      |
      v
-ActiveRegistrations.add(...)
+RegistrationList.add(...)
      |
      +--> retain original sequence/id/passage
      |
@@ -186,7 +186,7 @@ find newest still-valid ADD with same registrationId + passageTime
 
 The REV itself does not become a registration row.
 
-If no matching valid ADD exists, the active registration list and ranking index do not change.
+If no matching valid ADD exists, the registration list and ranking index do not change.
 
 ## 6. Start-time change flow
 
@@ -198,7 +198,7 @@ For one registration ID:
 new start time for A0007
         |
         v
-store new startTime once in RegistrationLookup
+store new startTime once in RegistrationIndex
         |
         v
 find retained rows with registrationId A0007
@@ -213,7 +213,7 @@ find retained rows with registrationId A0007
 ```
 
 This means the ranking index is always synchronized with the cached elapsed times in
-`ActiveRegistrations`.
+`RegistrationList`.
 
 Deleting a start time follows the same flow: old elapsed times are removed and the affected
 rows become non-rankable until another start time is known.
@@ -226,7 +226,7 @@ A visitor wants registration rows, for example for an engineering client or disp
 visitor requests N registration rows
         |
         v
-ActiveRegistrations visits rows in ADD order
+RegistrationList visits rows in ADD order
         |
         +--> row has no elapsedTime or is invalid
         |        rank = 0
@@ -247,7 +247,7 @@ No bulk rewrite of registration rows is necessary when ranks change.
 The implementation and tests should enforce these rules:
 
 1. LogBook is the historical source of truth.
-2. ActiveRegistrations retains ADD rows for one active timing point.
+2. RegistrationList retains ADD rows for one active timing point.
 3. A REV invalidates a retained ADD; it does not create a second row.
 4. Every valid row with a known elapsed time contributes exactly one occurrence to RankingIndex.
 5. Invalid rows contribute zero occurrences.
@@ -255,12 +255,12 @@ The implementation and tests should enforce these rules:
 7. Duplicate elapsed times remain duplicate occurrences in RankingIndex.
 8. Registration rows do not store rank.
 9. `rankOf(elapsed)` returns the current competition rank at read time.
-10. After every ADD, REV or start-time mutation, ActiveRegistrations and RankingIndex agree.
+10. After every ADD, REV or start-time mutation, RegistrationList and RankingIndex agree.
 
 
 ## 9. Fast registration lookup and unique-registration count
 
-`ActiveRegistrations` remains a chronological list of retained ADD rows.
+`RegistrationList` remains a chronological list of retained ADD rows.
 
 For the normal lookup case it may additionally keep one small entry per
 `registrationId`:
@@ -305,14 +305,14 @@ two meanings cannot be confused.
 
 The display does not need the complete LogBook. It needs:
 
-1. an occasional full snapshot of `ActiveRegistrations`;
+1. an occasional full snapshot of `RegistrationList`;
 2. all display-relevant mutations that happened after that snapshot.
 
 Therefore the active state also owns a monotonically numbered
 `RegistrationMutations` list:
 
 ```text
-ActiveRegistrations
+RegistrationList
        |
        +---- RankingIndex
        |
@@ -342,7 +342,7 @@ serialized operation:
                  one serialized state operation
               +--------------------------------+
               |                                |
-              |  read ActiveRegistrations      |
+              |  read RegistrationList      |
               |  snapshotRevision = current    |
               |      mutation revision         |
               |                                |
@@ -461,7 +461,7 @@ The intended in-memory model is now:
 LogBook                         authoritative history
    |
    v
-ActiveRegistrations             retained ADD rows for active WP
+RegistrationList             retained ADD rows for active WP
    |
    +-- registration lookup      validCount + fast single position
    |        |
@@ -509,7 +509,7 @@ The concrete allocation and search-structure choices are documented in
 
 Key rules:
 
-- ActiveRegistrations is append-only while a WP is active;
+- RegistrationList is append-only while a WP is active;
 - REV invalidates a stable row instead of deleting/shifting it;
 - row bulk data is stored in primitive arrays;
 - start time is stored once per registrationId in the primitive lookup table;
