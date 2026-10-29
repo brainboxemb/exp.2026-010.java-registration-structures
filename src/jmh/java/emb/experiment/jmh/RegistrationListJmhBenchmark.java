@@ -99,9 +99,7 @@ public class RegistrationListJmhBenchmark {
 
             list.beginInitialLoad();
             for (int i = 0; i < 500; i++)
-                list.setStart(registrationId(i), BASE_START);
-            for (int i = 0; i < 500; i++)
-                list.add(i + 1L, registrationId(i), passage(i));
+                list.add(i + 1L, registrationId(i), passage(i), BASE_START);
             list.finishInitialLoad();
 
             // Build a stable 64-entry live mutation window for mutationBatch64.
@@ -136,7 +134,11 @@ public class RegistrationListJmhBenchmark {
                 list.add(i + 1L, registrationId(i), passage(i));
 
             // Registration 400 deliberately has two retained rows.
-            list.add(501L, registrationId(400), passage(400) + 10_000L);
+            list.add(
+                    501L,
+                    registrationId(400),
+                    passage(400) + 10_000L,
+                    BASE_START);
             list.finishInitialLoad();
 
             rows = new RowChecksum();
