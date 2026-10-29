@@ -23,6 +23,7 @@ public final class PackedProjection implements ProjectionModel {
 
     private long[] sortedElapsed;
     private int size;
+    private boolean rebuilding;
     private int ranked;
     private int rowGrowth;
     private int rankGrowth;
@@ -92,6 +93,18 @@ public final class PackedProjection implements ProjectionModel {
                 ? MISSING : passage - start.longValue();
     }
 
+    @Override public void beginRebuild() {
+        if (size != 0 || rebuilding)
+            throw new IllegalStateException("rebuild requires a newly created empty projection");
+        rebuilding = true;
+    }
+
+    @Override public void completeRebuild() {
+        if (!rebuilding) throw new IllegalStateException("rebuild was not started");
+        rebuilding = false;
+        changes.resetToRevision(stateRevision);
+    }
+
     @Override public boolean add(long sequence, int id, long passage) {
         if (sequence <= lastMutationSequence || passage < 0)
             throw new IllegalArgumentException("ADD sequence must increase and time must be nonnegative");
@@ -109,8 +122,9 @@ public final class PackedProjection implements ProjectionModel {
         }
         lastMutationSequence = sequence;
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
-                sequence, sequence, changedRank);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
+                    sequence, sequence, changedRank);
         return true;
     }
 
@@ -128,8 +142,9 @@ public final class PackedProjection implements ProjectionModel {
                 lastMutationSequence = sequence;
                 lastRevokeSequence = sequence;
                 stateRevision++;
-                changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
-                        sequence, sequences[i], changedRank);
+                if (!rebuilding)
+                    changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
+                            sequence, sequences[i], changedRank);
                 return true;
             }
         }
@@ -142,7 +157,8 @@ public final class PackedProjection implements ProjectionModel {
         if (previous != null && previous.longValue() == startMillis) return false;
         boolean changedRank = refreshStart(id);
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.START_SET, id, 0L, 0L, changedRank);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.START_SET, id, 0L, 0L, changedRank);
         return true;
     }
 
@@ -150,7 +166,8 @@ public final class PackedProjection implements ProjectionModel {
         if (starts.remove(id) == null) return false;
         boolean changedRank = refreshStart(id);
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id, 0L, 0L, changedRank);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id, 0L, 0L, changedRank);
         return true;
     }
 
@@ -184,6 +201,7 @@ public final class PackedProjection implements ProjectionModel {
             if (sequences[mid] <= afterSequence) lo = mid + 1;
             else hi = mid;
         }
+        if (rebuilding) throw new IllegalStateException("historical replay incomplete");
         int count = 0;
         for (int i = lo; i < size && count < limit; i++) {
             int rank = valid[i] && elapsed[i] != MISSING
