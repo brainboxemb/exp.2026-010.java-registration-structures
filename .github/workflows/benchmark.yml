@@ -31,7 +31,7 @@ jobs:
           set -euo pipefail
           echo "mode,population,sample,wall_seconds,max_rss_kb" > startup.csv
           : > startup-details.txt
-          for mode in REBUILD SORTED_ARRAY; do
+          for mode in PRODUCTION_EAGER REBUILD SORTED_ARRAY PACKED_SORTED; do
             for n in 500 1000 5000; do
               for sample in 1 2 3 4 5; do
                 /usr/bin/time -f '%e,%M' -o /tmp/probe-time.txt \
