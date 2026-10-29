@@ -30,7 +30,11 @@ jobs:
 
       - name: Run JMH
         run: |
-          java -jar target/benchmarks.jar             -rf json             -rff jmh-result.json             -prof gc
+          java -jar target/benchmarks.jar \
+            -p implementation=SORTED_ARRAY,POOLED_AVL \
+            -rf json \
+            -rff jmh-result.json \
+            -prof gc
           cat jmh-result.json
 
       - name: Measure retained object graphs
