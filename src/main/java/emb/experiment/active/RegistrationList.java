@@ -321,6 +321,9 @@ public final class RegistrationList {
             long oldElapsed = elapsedTimes[row];
             long newElapsed = elapsed(startTime, passageTimes[row]);
 
+            // Start time belongs to the row view even when elapsed remains NO_TIME.
+            startTimes[row] = startTime;
+
             if (oldElapsed == newElapsed)
                 continue;
 
@@ -330,7 +333,6 @@ public final class RegistrationList {
                 rankingChanged = true;
             }
 
-            startTimes[row] = startTime;
             elapsedTimes[row] = newElapsed;
 
             if (isValid(row) && newElapsed != NO_TIME) {
