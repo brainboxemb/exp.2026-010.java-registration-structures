@@ -49,14 +49,19 @@ Conceptually the **row arrays** are:
 long[] sequence
 int[]  registrationId
 long[] passageTime
+long[] startTime
 long[] elapsedTime
 byte[] flags
 ```
 
-The current start time is owned by RegistrationList too, but is stored **once per
-registrationId in RegistrationIndex**, not duplicated in every row.
+The current start time is also retained once per registrationId in RegistrationIndex,
+because a start may be known before the first registration arrives. Each retained row
+**also caches the start time that was used to calculate its elapsed time**.
 
-Logically a visitor can still see:
+This deliberate duplication costs one extra `long` per row (about 4 kB at 500 rows), but
+makes a row self-contained for visitors/snapshots and avoids a hash lookup for every row read.
+
+A visitor sees:
 
 ```text
 sequence + registrationId + passageTime + current startTime + elapsedTime + valid
@@ -72,10 +77,9 @@ For example row 217 is:
 sequence[217]
 registrationId[217]
 passageTime[217]
+startTime[217]
 elapsedTime[217]
 flags[217]
-
-startTime = RegistrationIndex.startTimeFor(registrationId[217])
 ```
 
 Suggested flags:
@@ -257,8 +261,8 @@ scan RegistrationList
 
 At roughly 500 rows this scan is cheap, allocation-free and simple.
 
-Because start time is stored once in RegistrationIndex, this scan changes only cached elapsed
-values in the affected rows; it does not rewrite a duplicated start value into every row.
+The scan updates both cached `startTime[row]` and `elapsedTime[row]` for the affected rows.
+No extra traversal is required because elapsed time already has to be recalculated.
 
 The benchmark should include this operation before deciding that another index is justified.
 
