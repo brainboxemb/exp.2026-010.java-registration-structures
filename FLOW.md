@@ -198,13 +198,15 @@ For one registration ID:
 new start time for A0007
         |
         v
-store new startTime once in RegistrationIndex
+store new current startTime in RegistrationIndex
         |
         v
 find retained rows with registrationId A0007
         |
         +--> for every valid row with old elapsedTime:
         |        RankingIndex.remove(oldElapsedTime)
+        |
+        +--> cache new startTime in each affected row
         |
         +--> recalculate elapsedTime
         |
