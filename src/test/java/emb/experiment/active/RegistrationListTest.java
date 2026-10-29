@@ -21,13 +21,10 @@ final class RegistrationListTest {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 16);
 
-            assertTrue(list.setStart(A1, start(0)));
-            assertTrue(list.setStart(A2, start(0)));
-            assertTrue(list.setStart(A3, start(0)));
 
-            list.add(1, A1, passage(100));
-            list.add(2, A2, passage(100));
-            list.add(3, A3, passage(200));
+            list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+            list.add(2, A2, passage(100), start(0));
+            list.add(3, A3, passage(200), start(0));
 
             assertEquals(3, list.size());
             assertEquals(3, list.uniqueRetainedRegistrationCount());
@@ -53,12 +50,11 @@ final class RegistrationListTest {
     void oneValidRegistrationUsesDirectRowAndMultipleUsesExceptionalScan() {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 16);
-            list.setStart(A1, start(0));
 
-            assertEquals(0, list.add(1, A1, passage(100)));
+            assertEquals(0, list.add(1, A1, passage(100), RegistrationList.NO_TIME));
             assertEquals(1, list.validCount(A1));
 
-            assertEquals(1, list.add(2, A1, passage(200)));
+            assertEquals(1, list.add(2, A1, passage(200), start(0)));
             assertEquals(2, list.validCount(A1));
 
             assertTrue(list.revoke(3, A1, passage(200)));
@@ -80,12 +76,10 @@ final class RegistrationListTest {
     void startChangeScansAffectedRowsAndUpdatesRankingIndex() {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 16);
-            list.setStart(A1, start(0));
-            list.setStart(A2, start(0));
 
-            list.add(1, A1, passage(100));
-            list.add(2, A1, passage(200));
-            list.add(3, A2, passage(150));
+            list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+            list.add(2, A1, passage(200), start(0));
+            list.add(3, A2, passage(150), start(0));
 
             assertEquals(
                     listOf(
@@ -126,8 +120,7 @@ final class RegistrationListTest {
     void cachedStartTimeChangesEvenWhenElapsedStaysUnknown() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
 
-        assertTrue(list.setStart(A1, start(1000)));
-        list.add(1, A1, passage(0));
+        list.add(1, A1, passage(0), start(1000));
 
         final long[] observed = new long[2];
         list.visitRows(0, 1, (row, seq, id, passage, start, elapsed, valid, rank) -> {
@@ -153,8 +146,7 @@ final class RegistrationListTest {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
         long passage = Instant.parse("2026-10-30T00:30:00Z").toEpochMilli();
 
-        assertTrue(list.setStart(A1, 23_50_00_00L));
-        list.add(1, A1, passage);
+        list.add(1, A1, passage, 23_50_00_00L);
 
         final long[] observed = new long[2];
         list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
@@ -172,7 +164,7 @@ final class RegistrationListTest {
         long passage = Instant.parse("2026-10-30T12:00:00Z").toEpochMilli();
 
         assertTrue(list.setStart(A1, 00_00_00_00L));
-        list.add(1, A1, passage);
+        list.add(1, A1, passage, 23_50_00_00L);
 
         final long[] observed = new long[2];
         list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
@@ -190,7 +182,7 @@ final class RegistrationListTest {
         long passage = Instant.parse("2026-01-01T00:00:10Z").toEpochMilli();
 
         assertTrue(list.setStart(A1, 2025_12_31_23_59_50_00L));
-        list.add(1, A1, passage);
+        list.add(1, A1, passage, 23_50_00_00L);
 
         final long[] observed = new long[2];
         list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
@@ -207,13 +199,11 @@ final class RegistrationListTest {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 8);
 
-            list.setStart(A1, start(0));
-            list.setStart(A2, start(0));
 
             list.beginInitialLoad();
-            list.add(1, A1, passage(100));
-            list.add(2, A2, passage(200));
-            list.add(3, A1, passage(300));
+            list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+            list.add(2, A2, passage(200), start(0));
+            list.add(3, A1, passage(300), start(0));
             assertTrue(list.revoke(4, A1, passage(300)));
 
             assertThrows(
@@ -235,7 +225,7 @@ final class RegistrationListTest {
                     (row, seq, id, passage, start, elapsed, valid, rank) -> {});
             assertEquals(0, marker, kind.name());
 
-            list.add(5, A1, passage(150));
+            list.add(5, A1, passage(150), start(0));
             assertEquals(1, list.latestMutationRevision(), kind.name());
             assertEquals(
                     listOf("1:ROW_ADDED:3:1"),
@@ -247,10 +237,9 @@ final class RegistrationListTest {
     @Test
     void snapshotMarkerAndMutationStreamFormOneSynchronizationCursor() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 3);
-        list.setStart(A1, start(0));
 
-        list.add(1, A1, passage(100));
-        list.add(2, A2, passage(200));
+        list.add(1, A1, passage(100), RegistrationList.NO_TIME);
+        list.add(2, A2, passage(200), RegistrationList.NO_TIME);
 
         List<String> snapshotRows = new ArrayList<String>();
         long marker = list.visitSnapshot((row, seq, id, passage, start, elapsed, valid, rank) ->
@@ -260,7 +249,7 @@ final class RegistrationListTest {
         assertEquals(2, snapshotRows.size());
 
         list.revoke(3, A1, passage(100));
-        list.add(4, A3, passage(300));
+        list.add(4, A3, passage(300), RegistrationList.NO_TIME);
 
         assertEquals(
                 listOf("3:ROW_REVOKED:0:1", "4:ROW_ADDED:2:0"),
@@ -281,28 +270,29 @@ final class RegistrationListTest {
     }
 
     @Test
-    void startOnlyIndexEntryDoesNotCountAsRetainedRegistrationAndExistingIdDoesNotRehash() {
+    void startChangeWithoutRetainedRowDoesNotCreateRegistrationIndexEntry() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 2, 2, 8);
 
-        assertTrue(list.setStart(A1, start(0)));
+        assertFalse(list.setStart(A1, start(0)));
+        assertFalse(list.deleteStart(A1));
         assertEquals(0, list.uniqueRetainedRegistrationCount());
         assertEquals(0, list.uniqueValidRegistrationCount());
         assertEquals(2, list.indexCapacity());
         assertEquals(0, list.indexGrowthEvents());
 
+        list.add(1, A1, passage(200), start(0));
+        assertEquals(1, list.uniqueRetainedRegistrationCount());
+        assertEquals(1, list.uniqueValidRegistrationCount());
+
         assertTrue(list.setStart(A1, start(100)));
         assertEquals(2, list.indexCapacity());
         assertEquals(0, list.indexGrowthEvents());
 
-        list.add(1, A1, passage(200));
-        assertEquals(1, list.uniqueRetainedRegistrationCount());
-        assertEquals(1, list.uniqueValidRegistrationCount());
-
-        list.add(2, A2, passage(300));
+        list.add(2, A2, passage(300), RegistrationList.NO_TIME);
         assertEquals(4, list.indexCapacity());
         assertEquals(1, list.indexGrowthEvents());
 
-        list.add(3, A3, passage(400));
+        list.add(3, A3, passage(400), RegistrationList.NO_TIME);
         assertEquals(4, list.rowCapacity());
         assertEquals(1, list.rowGrowthEvents());
     }
@@ -310,7 +300,7 @@ final class RegistrationListTest {
     @Test
     void unmatchedRevConsumesLogSequenceButDoesNotCreateDisplayMutation() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
-        list.add(1, A1, passage(100));
+        list.add(1, A1, passage(100), RegistrationList.NO_TIME);
 
         long mutationBefore = list.latestMutationRevision();
         assertFalse(list.revoke(2, A1, passage(9999)));
@@ -319,7 +309,7 @@ final class RegistrationListTest {
         assertEquals(mutationBefore, list.latestMutationRevision());
         assertEquals(1, list.validCount(A1));
 
-        assertThrows(IllegalArgumentException.class, () -> list.add(2, A2, passage(200)));
+        assertThrows(IllegalArgumentException.class, () -> list.add(2, A2, passage(200), RegistrationList.NO_TIME));
     }
 
     private static long passage(long elapsedMillis) {
