@@ -9,7 +9,6 @@ import java.util.Arrays;
  * table simple: key 0 means EMPTY and no tombstones are required.
  */
 final class RegistrationIndex {
-    static final long NO_START = Long.MIN_VALUE;
     static final int NO_ROW = -1;
 
     private int[] keys;
@@ -17,7 +16,6 @@ final class RegistrationIndex {
     private int[] validCounts;
     private int[] onlyRetainedRows;
     private int[] onlyValidRows;
-    private long[] startTimes;
 
     private int occupied;
     private int uniqueRetained;
@@ -34,12 +32,10 @@ final class RegistrationIndex {
         validCounts = new int[capacity];
         onlyRetainedRows = new int[capacity];
         onlyValidRows = new int[capacity];
-        startTimes = new long[capacity];
 
         Arrays.fill(onlyRetainedRows, NO_ROW);
         Arrays.fill(onlyRetainedRows, NO_ROW);
         Arrays.fill(onlyValidRows, NO_ROW);
-        Arrays.fill(startTimes, NO_START);
     }
 
     int ensureSlot(int registrationId) {
@@ -121,28 +117,6 @@ final class RegistrationIndex {
         onlyValidRows[slot] = row;
     }
 
-    long startTime(int slot) {
-        return startTimes[slot];
-    }
-
-    boolean setStartTime(int slot, long startTime) {
-        if (startTime == NO_START)
-            throw new IllegalArgumentException("NO_START is reserved");
-        if (startTimes[slot] == startTime)
-            return false;
-
-        startTimes[slot] = startTime;
-        return true;
-    }
-
-    boolean deleteStartTime(int slot) {
-        if (startTimes[slot] == NO_START)
-            return false;
-
-        startTimes[slot] = NO_START;
-        return true;
-    }
-
     int retainedCount(int slot) {
         return retainedCounts[slot];
     }
@@ -191,7 +165,6 @@ final class RegistrationIndex {
         int[] oldValid = validCounts;
         int[] oldOnlyRetained = onlyRetainedRows;
         int[] oldOnlyValid = onlyValidRows;
-        long[] oldStarts = startTimes;
 
         int newCapacity = oldKeys.length * 2;
         keys = new int[newCapacity];
@@ -199,10 +172,8 @@ final class RegistrationIndex {
         validCounts = new int[newCapacity];
         onlyRetainedRows = new int[newCapacity];
         onlyValidRows = new int[newCapacity];
-        startTimes = new long[newCapacity];
 
         Arrays.fill(onlyValidRows, NO_ROW);
-        Arrays.fill(startTimes, NO_START);
 
         occupied = 0;
 
@@ -217,7 +188,6 @@ final class RegistrationIndex {
             validCounts[slot] = oldValid[i];
             onlyRetainedRows[slot] = oldOnlyRetained[i];
             onlyValidRows[slot] = oldOnlyValid[i];
-            startTimes[slot] = oldStarts[i];
             occupied++;
         }
 
