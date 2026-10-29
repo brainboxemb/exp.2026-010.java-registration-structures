@@ -78,7 +78,7 @@ https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions
 | Scope | Sorted array | Pooled AVL |
 | --- | ---: | ---: |
 | RankingIndex only | **4.05 KiB** | 26.07 KiB |
-| Complete 500-row RegistrationList graph | **71.44 KiB** | 93.45 KiB |
+| Complete 500-row RegistrationList graph | **67.44 KiB** | 89.45 KiB |
 
 JOL self-attach was enabled successfully; the GitHub runner still disallows its
 Serviceability Agent. The retained object-graph measurement remained stable across both runs. The relative result is nevertheless consistent
