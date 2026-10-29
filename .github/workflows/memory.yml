@@ -24,7 +24,7 @@ jobs:
 
       - name: Measure retained object graphs
         run: |
-          java -cp target/benchmarks.jar emb.experiment.jmh.MemoryFootprintProbe > memory-footprint.csv
+          java -Djdk.attach.allowAttachSelf=true -cp target/benchmarks.jar emb.experiment.jmh.MemoryFootprintProbe > memory-footprint.csv
           cat memory-footprint.csv
 
       - uses: actions/upload-artifact@v4
