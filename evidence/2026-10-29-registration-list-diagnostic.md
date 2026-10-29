@@ -156,6 +156,30 @@ JVM array/object headers and alignment are excluded.
 The TreeMap and pooled-AVL representations have different object overhead and need retained
 heap profiling for a fair full-memory comparison.
 
+## Allocation follow-up: compact production stage starts
+
+A later diagnostic run after production StageTiming parity and the retained-row fast path:
+
+https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40857189006
+
+moved timestamp normalization outside the timed state mutation and changed
+`StageTiming.elapsedMillisOrMissing()` to parse compact UTC values without temporary
+`LocalDate/LocalTime/LocalDateTime` objects.
+
+At 500 rows:
+
+| Scenario | Rebuild+sort | Sorted array | TreeMap | Pooled AVL |
+| --- | ---: | ---: | ---: | ---: |
+| Single-row start change allocated | **0 B/op** | **0 B/op** | 96.2 B/op | **0 B/op** |
+| Preallocated mixed workload allocated | **0 B/op** | **0 B/op** | 3286.5 B/op | **0 B/op** |
+
+This closes an earlier measurement artifact where compact timestamp construction inside the
+benchmark itself appeared as model allocation.
+
+The state-layer contract is now the same as production: protocol/RaceData code supplies an
+already-normalized compact UTC `long`; RegistrationList only recalculates cached elapsed
+milliseconds and ranking state.
+
 ## Current evidence-based direction
 
 Keep the simple surrounding design:
