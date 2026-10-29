@@ -6,6 +6,11 @@ package emb.experiment.registration;
  * serial mutation lane. Protocol conversion and event source are outside scope.
  */
 public interface ProjectionModel {
+    /** Begin one historical LogBook reconstruction on an empty projection. */
+    void beginRebuild();
+    /** Finalize ranks, then publish a snapshot cursor; replay mutations stay silent. */
+    void completeRebuild();
+
     boolean add(long sequence, int registrationId, long passageMillis);
     boolean revoke(long sequence, int registrationId, long passageMillis);
     boolean setStart(int registrationId, long startEpochMillis);
