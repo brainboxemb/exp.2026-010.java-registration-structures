@@ -2,6 +2,13 @@ name: JMH benchmarks
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - experiment/ranking-structures-clean
+    paths:
+      - src/jmh/**
+      - .github/workflows/jmh.yml
+      - pom.xml
 
 jobs:
   jmh:
