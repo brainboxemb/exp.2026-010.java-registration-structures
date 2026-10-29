@@ -225,7 +225,7 @@ public final class DiagnosticBenchmark {
                 + ";cores=" + Runtime.getRuntime().availableProcessors());
         System.out.println("scenario,mode,population,operations,median_ns_per_operation,"
                 + "median_allocated_bytes_per_operation,row_growth_events,rank_growth_events,checksum");
-        for (ModelKind mode : RegistrationProjection.RankingMode.values()) {
+        for (ModelKind mode : ModelKind.values()) {
             report("construct_512", mode, 0, 100, () -> constructor(mode, meter));
             report("grow_512_to_513", mode, 513, 1, () -> growth(mode, meter));
             for (int n : populations) {
