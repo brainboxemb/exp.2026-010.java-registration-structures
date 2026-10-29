@@ -28,6 +28,19 @@ first; ties have equal rank. For elapsed times 10, 10 and 15 seconds, ranks
 are 1, 1 and 3. When a start time changes, the relevant elapsed times and
 possibly every displayed rank need to be reconsidered.
 
+## The shortest route through the code
+
+Run the small example first:
+
+```sh
+mvn -B verify
+java -cp target/classes emb.experiment.registration.ExampleWalkthrough
+```
+
+Its source, `ExampleWalkthrough.java`, is the most approachable file in
+this repository: two runners, one WP, one OPEN, one REV, followed by the
+resulting display rows and change notification.
+
 ## Follow the code in this order
 
 **1. `LogBookProjectionSession.java`** — A *test fixture* that resembles the
