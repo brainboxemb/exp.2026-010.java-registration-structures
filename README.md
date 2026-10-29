@@ -3,39 +3,40 @@
 Standalone Java 8-compatible experiment for Event Timing registration-state architecture.
 
 The experiment does **not** modify production. The production reference is
-`brainboxemb/2026-010-02.java.timing-point-application`. The separate Raspberry Pi
-image project owns the OS build; this repository owns experimental workloads, tests,
-performance diagnostics and eventual target evidence.
+`brainboxemb/2026-010-02.java.timing-point-application`; the Raspberry Pi
+image project separately owns the OS image.
 
-## Current implementation
+## Four compared representations
 
-Two interchangeable ranking structures:
+| Model | Retained registration state | Ranking update policy | Display paging |
+| --- | --- | --- | --- |
+| `PRODUCTION_EAGER` | `ArrayList` of row objects | Whole-list rank recalculation after each accepted live ADD/REV and affected stage-start change | Chronological scan |
+| `REBUILD` | Object-row array | Rebuild primitive sorted scratch on first rank query after changes | Binary-search cursor |
+| `SORTED_ARRAY` | Object-row array | Incremental sorted `long[]` index | Binary-search cursor |
+| `PACKED_SORTED` | Parallel primitive row arrays (no per-ADD Row object) | Incremental sorted `long[]` index | Binary-search cursor |
 
-- `REBUILD`: retain primitive elapsed-time values and rebuild a sorted copy on
-  first rank query after a mutation.
-- `SORTED_ARRAY`: keep a primitive sorted elapsed-time array up to date.
+All models retain invalidated ADDs, revoke newest-valid matching ADDs by
+(registration ID, UTC passage milliseconds), support per-registration stage starts,
+competition ranks with ties (1, 1, 3), bounded display visits, and a preallocated
+bounded change journal with explicit expired-cursor handling.
 
-Both models retain chronological ADD rows, resolve REV newest-first using exact
-(registration ID, UTC passage time), apply stage starts, calculate competition ranks
-with ties (1, 1, 3), and provide bounded sequence-based display visits (binary-search cursor access,
-O(log N + page size)). A preallocated bounded change journal exposes ordered
-ADD/REV/start-change deltas, indicates when rank re-query is needed, and explicitly
-rejects expired change cursors.
+**Important boundary:** The production-like model reproduces the **eager ranking
+algorithm**, not all Event Timing implementation details, message plumbing or
+`StageTiming` UTC/time-only ambiguity handling. Its `ArrayList` capacity/growth
+counters are estimates; timing and allocation bytes are measured in the JVM.
+The trial uses absolute UTC epoch milliseconds for both starts and passages.
 
-The first version deliberately uses absolute UTC epoch milliseconds for starts and
-passages; it does not recreate production's compact/time-only stage start rules.
-
-## Run
+## Run locally
 
 ```sh
 mvn -B verify
 java -cp target/classes emb.experiment.registration.DiagnosticBenchmark 500
 ```
 
-Tests include an **independent counting oracle**, deterministic ADD/REV/start workloads,
-display paging, journal overflow/resynchronization, capacity growth over 512
-rows and a 5,000-row case.
+Tests include an **independent counting oracle** across all four models,
+deterministic ADD/REV/start workloads, display paging, journal overflow,
+512→513 growth and a 5,000-row case.
 
-See [BENCHMARK.md](BENCHMARK.md) for the workload definitions, fresh-JVM probe,
-allocation/growth measurement, limitations and unfinished architecture comparisons.
-The benchmark is diagnostic only; there are no validated performance conclusions.
+See [BENCHMARK.md](BENCHMARK.md) for diagnostic measurement definitions,
+limitations and next checks. No production architecture recommendation has
+been established yet.
