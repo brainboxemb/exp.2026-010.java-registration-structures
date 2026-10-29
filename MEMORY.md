@@ -32,7 +32,7 @@ RegistrationList
 Each structure has one job.
 
 - **RegistrationList** stores retained ADD rows in chronological order.
-- **RegistrationIndex** accelerates the common lookup by registrationId.
+- **RegistrationIndex** accelerates the common retained-row lookup by registrationId.
 - **RankingIndex** stores only elapsed times that currently participate in ranking.
 - **RegistrationMutations** is a bounded synchronization journal for displays.
 
@@ -54,12 +54,12 @@ long[] elapsedTime   // cached derived millis
 byte[] flags
 ```
 
-The current compact UTC start is also retained once per registrationId in RegistrationIndex,
-because a start may be known before the first registration arrives. Each retained row
-**also caches the start time that was used to calculate its elapsed time**.
+RaceData owns the current compact UTC stage start per registrationId. RegistrationList does
+not duplicate that global map. When an ADD is applied, the caller passes the current RaceData
+start (or unknown), and the retained row caches the exact start used to calculate elapsed time.
 
-This deliberate duplication costs one extra `long` per row (about 4 kB at 500 rows), but
-makes a row self-contained for visitors/snapshots and avoids a hash lookup for every row read.
+The row-level `startTime[]` costs one `long` per retained row, but makes every row
+self-contained for visitors/snapshots.
 
 A visitor sees:
 
@@ -191,7 +191,6 @@ int[]  retainedCount
 int[]  onlyRetainedRow
 int[]  validCount
 int[]  onlyValidRow
-long[] startTime
 ```
 
 No `Map<Integer,...>`, boxed keys or entry objects are required.
@@ -208,8 +207,7 @@ comfortably below 0.5 and avoids rehashing in the normal case.
 The lookup directly provides:
 
 - `uniqueRetainedRegistrationCount = non-empty key count`;
-- `uniqueValidRegistrationCount = entries with validCount > 0`;
-- current start time for each registrationId.
+- `uniqueValidRegistrationCount = entries with validCount > 0`.
 
 Maintain both unique counts incrementally. In particular, update the valid-id count only on
 the `validCount 0 -> 1` and `1 -> 0` transitions; do not scan the table to answer it.
@@ -256,7 +254,7 @@ A start-time change normally affects exactly one retained ADD row.
 Use the same cheap single/multiple split:
 
 ```text
-RegistrationIndex.startTime[id] = new start
+RaceData has already applied the new current start
 
 retainedCount == 0
     -> no row update
@@ -481,12 +479,12 @@ slots, 1024 mutation slots and a 512-entry sorted ranking array, primitive paylo
 | Structure | Primitive payload |
 | --- | ---: |
 | RegistrationList row arrays (1024) | 37,888 bytes |
-| RegistrationIndex arrays (1024) | 28,672 bytes |
+| RegistrationIndex arrays (1024) | 20,480 bytes |
 | RegistrationMutations arrays (1024) | 6,144 bytes |
 | Sorted RankingIndex long[] (512) | 4,096 bytes |
-| **Total** | **76,800 bytes** |
+| **Total** | **68,608 bytes** |
 
-This is exactly 75 KiB of primitive payload, excluding JVM object/array headers and alignment.
+This is exactly 67 KiB of primitive payload, excluding JVM object/array headers and alignment.
 
 Compared with 512 row slots, the extra 512 retained-row capacity costs only about 18.5 KiB.
 That is a deliberate trade: avoid the likely 512→1024 whole-row-array copy once duplicate or
