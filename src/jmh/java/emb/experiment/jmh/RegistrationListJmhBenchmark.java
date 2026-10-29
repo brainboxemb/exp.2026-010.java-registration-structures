@@ -113,6 +113,9 @@ public class RegistrationListJmhBenchmark {
 
     @State(Scope.Thread)
     public static class MultipleRowsState {
+        @Param({"REBUILD_SORT", "SORTED_ARRAY", "TREE_MAP", "POOLED_AVL"})
+        public String implementation;
+
         RegistrationList list;
         RowChecksum rows;
 
@@ -122,7 +125,7 @@ public class RegistrationListJmhBenchmark {
                     1024,
                     1024,
                     1024,
-                    RankingIndexKind.SORTED_ARRAY.create(512));
+                    RankingIndexKind.valueOf(implementation).create(512));
 
             list.beginInitialLoad();
             for (int i = 0; i < 500; i++)
