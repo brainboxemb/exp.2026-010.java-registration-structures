@@ -151,6 +151,10 @@ public final class RegistrationListBenchmark {
             report("start_change_single", "LIST_ONLY", population, startChanges,
                     () -> startChangesListOnly(population, startChanges, meter));
 
+            int multipleStartIds = Math.max(1, population / 2);
+            report("start_change_multiple_scan", "LIST_ONLY", population, multipleStartIds,
+                    () -> startChangesMultipleListOnly(population, meter));
+
             report("snapshot_rows", "LIST_ONLY", population, population,
                     () -> snapshotListOnly(population, meter));
 
@@ -174,6 +178,10 @@ public final class RegistrationListBenchmark {
                 int startChanges = Math.min(population, 256);
                 report("start_change_single", kind.name(), population, startChanges,
                         () -> startChanges(kind, population, startChanges, meter));
+
+                int multipleStartIds = Math.max(1, population / 2);
+                report("start_change_multiple_scan", kind.name(), population, multipleStartIds,
+                        () -> startChangesMultiple(kind, population, meter));
 
                 report("snapshot_rows", kind.name(), population, population,
                         () -> snapshot(kind, population, meter));
@@ -256,6 +264,42 @@ public final class RegistrationListBenchmark {
         for (int i = 0; i < changes; i++) {
             if (!list.setStart(registrationId(i), changedStart))
                 throw new IllegalStateException("expected changed start");
+        }
+
+        return measured(
+                before,
+                beforeBytes,
+                list.latestMutationRevision() * 31L + list.uniqueValidRegistrationCount(),
+                meter);
+    }
+
+    private static Measurement startChangesMultipleListOnly(
+            int population,
+            Meter meter) {
+
+        int ids = Math.max(1, population / 2);
+        RegistrationList list = emptyListOnly(ids * 2);
+        list.beginInitialLoad();
+
+        long sequence = 0;
+        for (int i = 0; i < ids; i++)
+            list.add(++sequence, registrationId(i), passage(i), BASE_START);
+        for (int i = 0; i < ids; i++)
+            list.add(
+                    ++sequence,
+                    registrationId(i),
+                    passage(i) + 1_000_000L,
+                    BASE_START);
+
+        list.finishInitialLoad();
+        long changedStart = stageStart(1_000L);
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        for (int i = 0; i < ids; i++) {
+            if (!list.setStart(registrationId(i), changedStart))
+                throw new IllegalStateException("expected multi-row changed start");
         }
 
         return measured(
@@ -484,6 +528,43 @@ public final class RegistrationListBenchmark {
                 + list.uniqueValidRegistrationCount();
 
         return measured(before, beforeBytes, checksum, meter);
+    }
+
+    private static Measurement startChangesMultiple(
+            RankingIndexKind kind,
+            int population,
+            Meter meter) {
+
+        int ids = Math.max(1, population / 2);
+        RegistrationList list = emptyList(kind, ids * 2);
+        list.beginInitialLoad();
+
+        long sequence = 0;
+        for (int i = 0; i < ids; i++)
+            list.add(++sequence, registrationId(i), passage(i), BASE_START);
+        for (int i = 0; i < ids; i++)
+            list.add(
+                    ++sequence,
+                    registrationId(i),
+                    passage(i) + 1_000_000L,
+                    BASE_START);
+
+        list.finishInitialLoad();
+        long changedStart = stageStart(1_000L);
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        for (int i = 0; i < ids; i++) {
+            if (!list.setStart(registrationId(i), changedStart))
+                throw new IllegalStateException("expected multi-row changed start");
+        }
+
+        return measured(
+                before,
+                beforeBytes,
+                list.latestMutationRevision() * 31L + list.uniqueValidRegistrationCount(),
+                meter);
     }
 
     private static Measurement snapshot(RankingIndexKind kind, int population, Meter meter) {
