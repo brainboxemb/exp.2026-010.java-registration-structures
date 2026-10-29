@@ -3,8 +3,8 @@
 **Start with [FLOW.md](FLOW.md)** for the functional flow and
 **[MEMORY.md](MEMORY.md)** for the concrete memory/search structures.
 
-Together they define what belongs in the LogBook, ActiveRegistrations,
-RegistrationLookup, RankingIndex and RegistrationMutations, including how to
+Together they define what belongs in the LogBook, RegistrationList,
+RegistrationIndex, RankingIndex and RegistrationMutations, including how to
 avoid unnecessary object churn, list copies and full-list rewrites.
 
 Once that flow is clear, this repository answers one concrete implementation question:
