@@ -111,16 +111,25 @@ The list is cleared/replaced only when another timing point becomes active.
 
 ### Capacity
 
-Normal expected size is about 500 rows, so a natural first capacity is 512.
+Normal expected **valid/unique** population is about 500, but RegistrationList retains ADD
+rows even after REV. A 512-row array therefore leaves almost no headroom for duplicate/revoked
+history.
 
-When exceeded, grow geometrically, for example:
+The current candidate configuration is:
 
 ```text
-512 -> 1024 -> 2048
+RegistrationList rows: 1024
+RegistrationIndex slots: 1024
+RankingIndex active/rankable capacity: ~512
+RegistrationMutations: 1024
 ```
 
-A growth event copies each primitive array once. This is acceptable because it is rare,
-visible and measurable. Normal ADD/REV processing should not copy the complete list.
+Row capacity and ranking capacity are intentionally independent. The list may retain more
+historical ADD rows while only about 500 rows currently participate in ranking.
+
+When a structure is exceeded, grow geometrically. A growth event copies its primitive arrays
+once. This is visible and measurable; normal ADD/REV processing should not copy the complete
+list.
 
 The implementation should expose a growth counter in the experiment so boundary costs are
 not hidden.
@@ -327,7 +336,9 @@ This avoids copying sequence/id/time/etc. into every mutation record.
 
 ### Bounded history
 
-For example, preallocate 512 or 1024 mutation slots.
+Preallocate 1024 mutation slots as the current candidate. Historical LogBook replay is silent,
+so these slots are reserved for **live changes after the snapshot baseline**, not consumed by
+the initial 500-row reconstruction.
 
 Expose:
 
@@ -454,23 +465,26 @@ array is currently the simpler candidate and should remain the default compariso
 
 ## 10. Approximate primitive payload at normal capacity
 
-For a normal preallocation of 512 registration rows, 1024 registration-index slots,
-1024 mutation slots and a 512-entry sorted ranking array, the primitive payload is roughly:
+For the current candidate preallocation of 1024 registration rows, 1024 registration-index
+slots, 1024 mutation slots and a 512-entry sorted ranking array, primitive payload is roughly:
 
 | Structure | Primitive payload |
 | --- | ---: |
-| RegistrationList row arrays | 18,944 bytes |
-| RegistrationIndex arrays | 24,576 bytes |
-| RegistrationMutations arrays | 6,144 bytes |
-| Sorted RankingIndex long[] | 4,096 bytes |
-| **Total** | **53,760 bytes** |
+| RegistrationList row arrays (1024) | 37,888 bytes |
+| RegistrationIndex arrays (1024) | 24,576 bytes |
+| RegistrationMutations arrays (1024) | 6,144 bytes |
+| Sorted RankingIndex long[] (512) | 4,096 bytes |
+| **Total** | **72,704 bytes** |
 
-This is about 52.5 KiB of primitive payload. JVM object/array headers and alignment are not
-included, so actual heap use is somewhat higher.
+This is about 71 KiB of primitive payload, excluding JVM object/array headers and alignment.
 
-The cached row `startTime[]` accounts for only 4,096 bytes at 512 rows. Keeping it is
-therefore a deliberate readability/read-performance choice rather than trying to derive start
-time from passage/elapsed on every visitor.
+Compared with 512 row slots, the extra 512 retained-row capacity costs only about 18.5 KiB.
+That is a deliberate trade: avoid the likely 512→1024 whole-row-array copy once duplicate or
+revoked ADD history pushes the retained row count above ~500.
+
+The cached row `startTime[]` accounts for 8,192 bytes at 1024 rows. Keeping it avoids an
+index lookup on every visitor/snapshot row and preserves start information even when elapsed
+time is unknown.
 
 The TreeMap and pooled-AVL candidates have substantially different object overhead and should
 be measured with a retained-heap profiler rather than estimated from this table.
@@ -519,7 +533,8 @@ The implementation should test these invariants continuously:
 4. lookup `validCount` equals the number of valid rows for that id;
 5. when `validCount == 1`, `onlyValidRow` points to that row;
 6. RankingIndex occurrence count equals the number of valid rows with known elapsed time;
-7. mutation revisions are strictly monotonic;
-8. snapshots carry the mutation revision of the exact serialized state;
-9. expired mutation history always forces a new snapshot;
-10. ordinary visitors do not allocate result lists.
+7. initial LogBook replay creates no display mutations;
+8. live mutation revisions are strictly monotonic;
+9. snapshots carry the mutation revision of the exact serialized state;
+10. expired mutation history always forces a new snapshot;
+11. ordinary visitors do not allocate result lists.
