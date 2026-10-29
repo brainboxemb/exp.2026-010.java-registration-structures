@@ -92,10 +92,10 @@ public final class RankingBenchmark {
                 "scenario,solution,population,operations,median_ns_per_operation,"
                 + "median_allocated_bytes_per_operation,capacity,growth_events,checksum");
 
-        for (RankingKind kind : RankingKind.values()) {
+        for (RankingIndexKind kind : RankingIndexKind.values()) {
             report("construct_512", kind, 0, 100, () -> construct(kind, meter));
 
-            if (kind != RankingKind.TREE_MAP)
+            if (kind != RankingIndexKind.TREE_MAP)
                 report("grow_512_to_513", kind, 513, 1, () -> grow(kind, meter));
 
             for (int population : populations) {
@@ -120,13 +120,13 @@ public final class RankingBenchmark {
         System.out.println("# blackhole=" + blackhole);
     }
 
-    private static Measurement construct(RankingKind kind, Meter meter) {
+    private static Measurement construct(RankingIndexKind kind, Meter meter) {
         long bytesBefore = meter.allocatedBytes();
         long before = System.nanoTime();
 
         long checksum = 0;
         for (int i = 0; i < 100; i++) {
-            Ranking ranking = kind.create(INITIAL_CAPACITY);
+            RankingIndex ranking = kind.create(INITIAL_CAPACITY);
             checksum += ranking.size();
             checksum += ranking.capacity();
         }
@@ -134,8 +134,8 @@ public final class RankingBenchmark {
         return measured(before, bytesBefore, checksum, -1, -1, meter);
     }
 
-    private static Measurement grow(RankingKind kind, Meter meter) {
-        Ranking ranking = kind.create(INITIAL_CAPACITY);
+    private static Measurement grow(RankingIndexKind kind, Meter meter) {
+        RankingIndex ranking = kind.create(INITIAL_CAPACITY);
 
         for (int i = 0; i < INITIAL_CAPACITY; i++)
             ranking.add(i * 10L);
@@ -156,11 +156,11 @@ public final class RankingBenchmark {
                 meter);
     }
 
-    private static Measurement fill(RankingKind kind, long[] initial, Meter meter) {
+    private static Measurement fill(RankingIndexKind kind, long[] initial, Meter meter) {
         long bytesBefore = meter.allocatedBytes();
         long before = System.nanoTime();
 
-        Ranking ranking = kind.create(INITIAL_CAPACITY);
+        RankingIndex ranking = kind.create(INITIAL_CAPACITY);
         for (long value : initial)
             ranking.add(value);
         ranking.prepare();
@@ -177,13 +177,13 @@ public final class RankingBenchmark {
     }
 
     private static Measurement replace(
-            RankingKind kind,
+            RankingIndexKind kind,
             long[] initial,
             Replacement[] replacements,
             boolean queryRank,
             Meter meter) {
 
-        Ranking ranking = filled(kind, initial);
+        RankingIndex ranking = filled(kind, initial);
 
         long bytesBefore = meter.allocatedBytes();
         long before = System.nanoTime();
@@ -212,12 +212,12 @@ public final class RankingBenchmark {
     }
 
     private static Measurement query(
-            RankingKind kind,
+            RankingIndexKind kind,
             long[] initial,
             long[] queries,
             Meter meter) {
 
-        Ranking ranking = filled(kind, initial);
+        RankingIndex ranking = filled(kind, initial);
 
         long bytesBefore = meter.allocatedBytes();
         long before = System.nanoTime();
@@ -235,8 +235,8 @@ public final class RankingBenchmark {
                 meter);
     }
 
-    private static Ranking filled(RankingKind kind, long[] values) {
-        Ranking ranking = kind.create(INITIAL_CAPACITY);
+    private static RankingIndex filled(RankingIndexKind kind, long[] values) {
+        RankingIndex ranking = kind.create(INITIAL_CAPACITY);
         for (long value : values)
             ranking.add(value);
         ranking.prepare();
@@ -263,7 +263,7 @@ public final class RankingBenchmark {
 
     private static void report(
             String scenario,
-            RankingKind kind,
+            RankingIndexKind kind,
             int population,
             int operations,
             Work work) {
