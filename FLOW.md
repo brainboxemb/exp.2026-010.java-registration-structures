@@ -39,7 +39,7 @@ timing point.
 A retained registration row represents the original ADD. A REV does not create another
 display row; it invalidates the matching ADD row.
 
-A registration row should contain the data needed to understand that registration itself:
+A logical registration view contains:
 
 ```text
 sequence
@@ -50,7 +50,9 @@ elapsedTime
 valid
 ```
 
-`elapsedTime` may be cached because it changes only when the registration's start time changes.
+For efficient physical storage, `startTime` may be stored once per registrationId in the
+lookup structure rather than duplicated in every retained row. `elapsedTime` remains cached
+per row because passage times differ and it is read frequently.
 
 The row deliberately does **not** contain `rank`.
 
@@ -196,12 +198,13 @@ For one registration ID:
 new start time for A0007
         |
         v
+store new startTime once in RegistrationLookup
+        |
+        v
 find retained rows with registrationId A0007
         |
         +--> for every valid row with old elapsedTime:
         |        RankingIndex.remove(oldElapsedTime)
-        |
-        +--> store new startTime
         |
         +--> recalculate elapsedTime
         |
@@ -499,7 +502,26 @@ interface RankingIndex {
 
 `prepare()` exists so rebuild+sort can be compared fairly with always-ready structures.
 
-## 13. What is not part of this experiment yet
+## 13. Memory/storage implementation rules
+
+The concrete allocation and search-structure choices are documented in
+[MEMORY.md](MEMORY.md).
+
+Key rules:
+
+- ActiveRegistrations is append-only while a WP is active;
+- REV invalidates a stable row instead of deleting/shifting it;
+- row bulk data is stored in primitive arrays;
+- start time is stored once per registrationId in the primitive lookup table;
+- the lookup keeps validCount + onlyValidRow for the common O(1) REV path;
+- exceptional multi-registration cases may scan the ~500-row list;
+- RankingIndex contains only rankable elapsed times;
+- RegistrationMutations is a preallocated primitive ring buffer;
+- visitors stream scalar values and do not build temporary result lists;
+- snapshot creation directly encodes the stable state when possible rather than first copying
+  it into another Java object graph.
+
+## 14. What is not part of this experiment yet
 
 This repository does not yet decide:
 
