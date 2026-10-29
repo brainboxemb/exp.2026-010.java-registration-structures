@@ -1,4 +1,4 @@
-# Experiment 010 — Java ranking structures
+# Experiment 010 — Java registration and ranking structures
 
 **Start with [FLOW.md](FLOW.md)** for the functional flow and
 **[MEMORY.md](MEMORY.md)** for the concrete memory/search structures.
