@@ -6,7 +6,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 final class ChangeJournalTest {
-    private static List<String> deltas(RegistrationProjection projection, long after, int limit) {
+    private static List<String> deltas(ProjectionModel projection, long after, int limit) {
         List<String> events = new ArrayList<String>();
         int count = projection.visitChangesAfter(after, limit,
                 (revision, kind, id, mutationSequence, affectedAddSequence, ranks) ->
@@ -17,8 +17,8 @@ final class ChangeJournalTest {
     }
 
     @Test void publishesActualChangesWithoutAllocatingPerEventAndDetectsHistoryExpiry() {
-        for (RegistrationProjection.RankingMode mode : RegistrationProjection.RankingMode.values()) {
-            RegistrationProjection p = new RegistrationProjection(mode, 2, 3);
+        for (ModelKind mode : ModelKind.values()) {
+            ProjectionModel p = mode.create(2, 3);
             p.add(1, 7, 1200); // no stage start yet
             assertEquals(1, p.stateRevision());
             assertEquals(0, p.rankingRevision());
@@ -50,8 +50,8 @@ final class ChangeJournalTest {
     }
 
     @Test void unrelatedStartEventDoesNotInvalidateRanking() {
-        for (RegistrationProjection.RankingMode mode : RegistrationProjection.RankingMode.values()) {
-            RegistrationProjection p = new RegistrationProjection(mode, 2, 8);
+        for (ModelKind mode : ModelKind.values()) {
+            ProjectionModel p = mode.create(2, 8);
             assertTrue(p.setStart(500, 1000));
             assertEquals("1:START_SET:500:0:0:false", deltas(p, 0, 1).get(0));
             assertEquals(0, p.rankingRevision());
