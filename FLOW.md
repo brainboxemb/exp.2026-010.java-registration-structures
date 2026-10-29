@@ -16,15 +16,18 @@ LogBook                         authoritative history
    v
 RegistrationList               retained ADD rows for active WP
    |
-   +-- RegistrationIndex       counts / onlyValidRow / current start
+   +-- RegistrationIndex       retained/valid counts + direct single-row positions
    |
    +-- RankingIndex            valid known elapsed times
    |
    +-- RegistrationMutations   live display-sync changes
 ```
 
-RegistrationList is the primary in-memory registration storage. The other three structures
-only accelerate lookup/ranking/synchronization and do not duplicate the LogBook.
+RegistrationList is the primary in-memory registration storage. RegistrationIndex,
+RankingIndex and RegistrationMutations only accelerate lookup/ranking/synchronization.
+
+RaceData remains the authoritative owner of the **current stage start per registrationId**.
+RegistrationList only caches the start used by each retained row.
 
 ### LogBook
 
@@ -57,8 +60,8 @@ valid
 `startTime` and `elapsedTime` are both cached in every retained row so a visitor/snapshot
 can read one row without another index lookup. `startTime` uses the same compact UTC
 representation as production RaceData; `passageTime` remains absolute epoch milliseconds.
-RegistrationIndex also retains the **current** compact start per registrationId so a later ADD
-can initialize its row directly.
+The caller resolves the **current** compact stage start from RaceData when an ADD is applied and
+passes it into RegistrationList. RegistrationIndex does not duplicate current stage-start state.
 
 The row deliberately does **not** contain `rank`.
 
@@ -163,9 +166,9 @@ RegistrationList.add(...)
      |
      +--> retain original sequence/id/passage
      |
-     +--> look up current start time
+     +--> caller supplies current RaceData start (or unknown)
      |
-     +--> calculate elapsedTime
+     +--> cache startTime + calculate elapsedTime
      |
      +--> if valid and elapsedTime known:
               RankingIndex.add(elapsedTime)
@@ -206,10 +209,10 @@ For one registration ID:
 new start time for A0007
         |
         v
-store new current startTime in RegistrationIndex
+RaceData applies new current startTime
         |
         v
-find retained rows with registrationId A0007
+RegistrationList updates retained rows for A0007
         |
         +--> for every valid row with old elapsedTime:
         |        RankingIndex.remove(oldElapsedTime)
@@ -565,7 +568,7 @@ Key rules:
 - RegistrationList is append-only while a WP is active;
 - REV invalidates a stable row instead of deleting/shifting it;
 - row bulk data is stored in primitive arrays;
-- current start time is retained in RegistrationIndex and cached in each row;
+- RaceData owns current stage starts; RegistrationList caches startTime per retained row;
 - the lookup keeps validCount + onlyValidRow for the common O(1) REV path;
 - exceptional multi-registration cases may scan the ~500-row list;
 - RankingIndex contains only rankable elapsed times;
