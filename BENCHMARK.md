@@ -15,17 +15,28 @@ preallocated change journal reports changed rows, start updates and conservative
 global rank invalidations. An expired change cursor fails explicitly, so a
 display can detect when a complete resynchronization is required.
 
-The two candidate ranking structures share the same retained-row implementation:
-- **REBUILD**: unsorted primitive elapsed-time values; a reusable sorted copy is rebuilt
-  at the first ranking query after rankable mutations.
-- **SORTED_ARRAY**: primitive elapsed-time array kept sorted on every rankable mutation,
-  using binary-search insertion and array shifting.
+The four model choices use the same public `ProjectionModel` contract:
 
-This isolates ranking-index trade-offs, **not** Java object-vs-primitive row storage.
-The current experimental row representation has **one allocated Row object per ADD**.
-The reference application likewise retains chronological ADD rows, but ranks its whole
-projection after live mutations. A faithful full-recalculation production baseline is
-**not yet included**. Do not interpret REBUILD as that baseline.
+- **PRODUCTION_EAGER**: a normalized-time, production-**like** baseline using
+  `ArrayList` of mutable row objects. On each accepted live ADD/REV, and each
+  stage-start change that actually changes a retained row, it resets all ranks,
+  fills and sorts a reusable `long[]`, and assigns ranks with a second full scan.
+  Its display visits also scan the list in chronological order. This models the
+  code currently found in `ActiveRegistrations` / `CompetitionRanking`.
+- **REBUILD**: object-row array and an unsorted primitive rank index, rebuilt/sorted
+  at the first rank query following rankable mutations.
+- **SORTED_ARRAY**: the same object rows, but a sorted primitive `long[]` rank index
+  updated incrementally with array shifts.
+- **PACKED_SORTED**: parallel primitive arrays for sequences, IDs, passage times,
+  elapsed times and validity (no per-row object); the same sorted-index principle.
+
+The preallocated change journal is shared across models for comparison, but is
+**experimental**, not part of the current production implementation. The
+production-like baseline does not reproduce every application subsystem or
+full domain timestamp conversion; it is not a literal clone. Its reported
+`rowCapacity`/`rowGrowthEvents` are **estimated** `ArrayList` 1.5x
+capacity behaviour, because `ArrayList` does not expose its actual capacity.
+JVM allocation measurements are real thread allocation counters when supported.
 
 Stage-starts and passages in this first slice are absolute UTC epoch milliseconds.
 Production additionally supports compact UTC and time-only starts, with strict ambiguity
@@ -38,7 +49,7 @@ parity suite before considering production integration.
 mvn -B verify
 ```
 
-The independent oracle never uses either ranking candidate's index and computes the
+The independent oracle never uses any candidate ranking index and computes the
 competition rank by counting every strictly faster valid row. The test suite covers:
 duplicate elapsed times; repeated identical ADDs and newest-first REV; start SET/DEL;
 no-op updates; unmatched REV; bounded sequence paging; seeded mixed operations; 512→513
@@ -55,7 +66,7 @@ java -cp target/classes emb.experiment.registration.DiagnosticBenchmark
 java -cp target/classes emb.experiment.registration.DiagnosticBenchmark 500
 ```
 
-The default populations are 500, 1,000 and 5,000 entries. Each ranking mode reports:
+The default populations are 500, 1,000 and 5,000 entries. Each model reports:
 
 | Scenario | What is measured |
 | --- | --- |
@@ -76,7 +87,9 @@ Changing read frequency intentionally changes the workload cost.
 This is a **diagnostic microbenchmark**, not JMH. It does not control CPU frequency,
 thermal throttling, garbage collection, JIT compilation, system load or confidence
 intervals. Tiny single-operation growth results are particularly noisy. There are
-currently no evidence-based performance claims.
+currently no reliable **architecture-selection** performance claims. Exploratory
+CSV evidence is retained as CI artifacts and should be accompanied by a
+committed summary referencing the exact workflow run SHA.
 
 ## Fresh-JVM first-use measurement
 
@@ -99,9 +112,10 @@ Results on an ephemeral desktop CI runner are exploration only.
 
 ## Required before an architecture decision
 
-1. Add a faithful current-production baseline for full rank recalculation.
+1. Validate production-like baseline against actual production record and projection fixtures,
+   including the record type / LocationId filtering and rebuild-vs-live distinction.
 2. Add an independent oracle for compact/time-only start timestamps and node events.
-3. Compare a packed/primitive row-state candidate with this object-row baseline.
+3. Improve model-specific memory-retention attribution and verify ArrayList capacity estimates.
 4. Validate the bounded change journal against actual engineering display synchronization
    and reconnect behaviour, and measure change-journal costs separately.
 5. Calibrate with JMH/forks/profilers for robust performance evidence.
