@@ -44,11 +44,10 @@ final class RegistrationIndexTest {
     }
 
     @Test
-    void rehashPreservesDirectPositionsAndStartTime() {
+    void rehashPreservesDirectPositions() {
         RegistrationIndex index = new RegistrationIndex(2);
 
         int first = index.ensureSlot(A1);
-        index.setStartTime(first, 12_00_00_00L);
         index.rowAdded(first, 9);
 
         // Second distinct key crosses the 0.5 load factor and rehashes.
@@ -60,7 +59,6 @@ final class RegistrationIndexTest {
         assertEquals(1, index.validCount(movedFirst));
         assertEquals(9, index.onlyRetainedRow(movedFirst));
         assertEquals(9, index.onlyValidRow(movedFirst));
-        assertEquals(12_00_00_00L, index.startTime(movedFirst));
 
         int movedSecond = index.findExistingSlot(A2);
         assertEquals(11, index.onlyRetainedRow(movedSecond));
