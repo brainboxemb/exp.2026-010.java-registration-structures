@@ -463,6 +463,37 @@ the current `RankingIndex`.
 A start-time mutation may therefore identify the affected registrationId or
 affected rows, while the visitor still obtains each current rank dynamically.
 
+### Ranking-changed flag
+
+ADD, REV and start changes can alter the rank of registrations whose own row did not change.
+
+Do **not** emit one synthetic mutation for every row whose numeric rank changed. Instead, a
+display-relevant mutation carries the `RANKING_CHANGED` flag when RankingIndex content changed.
+
+The display processes one mutation batch like this:
+
+```text
+rankingDirty = false
+
+for each mutation in batch:
+    apply/refresh its direct row(s)
+    rankingDirty |= mutation.RANKING_CHANGED
+
+if rankingDirty:
+    re-read rank/current data for rows the display is actually presenting
+
+advance mutation cursor
+```
+
+For example, a display showing only 20 registrations refreshes those 20 ranks after one ADD;
+it does not synchronize all ~500 rows merely because their possible rank relationship changed.
+
+A full snapshot already contains current ranks for every visited row, so no extra ranking
+refresh is needed after accepting that snapshot.
+
+This preserves convergence while keeping the mutation journal compact: row/state changes are
+journaled once, and rank remains derived data.
+
 ## 11. Resulting state model
 
 The intended in-memory model is now:
