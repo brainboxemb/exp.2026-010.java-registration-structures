@@ -569,10 +569,7 @@ public final class RegistrationListBenchmark {
         list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
-            list.setStart(registrationId(i), BASE_START);
-
-        for (int i = 0; i < population; i++)
-            list.add(i + 1L, registrationId(i), passage(i));
+            list.add(i + 1L, registrationId(i), passage(i), BASE_START);
 
         list.finishInitialLoad();
         return list;
