@@ -13,7 +13,7 @@ package emb.experiment.ranking;
  * run without node allocation after construction; the pool grows geometrically
  * when more distinct values are required.
  */
-public final class PooledAvlRanking implements Ranking {
+public final class PooledAvlRanking implements RankingIndex {
     private static final class Node {
         long key;
         int count;
