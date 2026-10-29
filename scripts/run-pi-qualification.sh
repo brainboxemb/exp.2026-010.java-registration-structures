@@ -97,7 +97,7 @@ if [ "$RUN_JMH" = "1" ]; then
 
     echo "Running selected SortedArray vs PooledAVL JMH qualification..."
     # shellcheck disable=SC2086
-    java $JAVA_OPTS -jar "$JMH_JAR"         'RankingIndexJmhBenchmark.rankQuery|RankingIndexJmhBenchmark.replacePrepareRankRoundTrip|RegistrationListJmhBenchmark.registrationSyncScan|RegistrationListJmhBenchmark.snapshot500|RegistrationListJmhBenchmark.startChangeAndSyncRoundTrip'         -p implementation=SORTED_ARRAY,POOLED_AVL         -f 2         -wi 3         -i 5         -w 500ms         -r 500ms         -prof gc         -rf json         -rff "$OUT/jmh-selected.json"
+    java $JAVA_OPTS -jar "$JMH_JAR"         'RankingIndexJmhBenchmark.rankQuery|RankingIndexJmhBenchmark.replacePrepareRankRoundTrip|RegistrationListJmhBenchmark.registrationSyncSingle|RegistrationListJmhBenchmark.registrationSyncMultiple|RegistrationListJmhBenchmark.snapshot500|RegistrationListJmhBenchmark.startChangeAndSyncRoundTrip|RegistrationListJmhBenchmark.startChangeMultipleRoundTrip'         -p implementation=SORTED_ARRAY,POOLED_AVL         -f 2         -wi 3         -i 5         -w 500ms         -r 500ms         -prof gc         -rf json         -rff "$OUT/jmh-selected.json"
 else
     echo "RUN_JMH=0: selected JMH qualification skipped."
 fi
