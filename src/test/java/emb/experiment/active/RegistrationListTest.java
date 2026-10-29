@@ -120,6 +120,32 @@ final class RegistrationListTest {
     }
 
     @Test
+    void cachedStartTimeChangesEvenWhenElapsedStaysUnknown() {
+        RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
+
+        assertTrue(list.setStart(A1, 2000));
+        list.add(1, A1, 1000);
+
+        final long[] observed = new long[2];
+        list.visitRows(0, 1, (row, seq, id, passage, start, elapsed, valid, rank) -> {
+            observed[0] = start;
+            observed[1] = elapsed;
+        });
+
+        assertEquals(2000, observed[0]);
+        assertEquals(RegistrationList.NO_TIME, observed[1]);
+
+        assertTrue(list.setStart(A1, 3000));
+        list.visitRows(0, 1, (row, seq, id, passage, start, elapsed, valid, rank) -> {
+            observed[0] = start;
+            observed[1] = elapsed;
+        });
+
+        assertEquals(3000, observed[0]);
+        assertEquals(RegistrationList.NO_TIME, observed[1]);
+    }
+
+    @Test
     void snapshotMarkerAndMutationStreamFormOneSynchronizationCursor() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 3);
         list.setStart(A1, 1000);
