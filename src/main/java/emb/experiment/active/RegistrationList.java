@@ -125,15 +125,17 @@ public final class RegistrationList {
 
         if (index.validCount(slot) == 1) {
             row = index.onlyValidRow(slot);
-            fastRevokeCount++;
 
             if (!matchesValidRow(row, registrationId, passageTime))
                 return false;
+
+            fastRevokeCount++;
         } else {
-            scannedRevokeCount++;
             row = findNewestValidRow(registrationId, passageTime);
             if (row < 0)
                 return false;
+
+            scannedRevokeCount++;
         }
 
         invalidateRow(slot, row);
