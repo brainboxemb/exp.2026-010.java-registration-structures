@@ -3,7 +3,8 @@
 **Start with [FLOW.md](FLOW.md)** for the functional flow,
 **[MEMORY.md](MEMORY.md)** for the concrete memory/search structures,
 **[DECISION.md](DECISION.md)** for the current evidence-based architecture choice,
-**[PRODUCTION-PARITY.md](PRODUCTION-PARITY.md)** for the real Event Timing semantics, and
+**[PRODUCTION-PARITY.md](PRODUCTION-PARITY.md)** for the real Event Timing semantics,
+**[MIGRATION.md](MIGRATION.md)** for the production integration map, and
 **[PI.md](PI.md)** for the physical Pi Zero qualification procedure.
 
 Together they define what belongs in the LogBook, RegistrationList,
@@ -60,7 +61,7 @@ mvn -B verify
 
 The tests compare every RankingIndex with an independent, intentionally slow oracle.
 A second independent RegistrationList oracle drives seeded ADD/REV/start/delete workloads
-and verifies every row, rank, unique count, current start and mutation revision.
+and verifies every row, cached start/elapsed value, rank, unique count and mutation revision.
 Tests also cover duplicates, capacity growth, silent initial LogBook load and snapshot cursors.
 
 ## Timing
@@ -109,6 +110,7 @@ FLOW.md
 MEMORY.md
 DECISION.md
 PRODUCTION-PARITY.md
+MIGRATION.md
 PI.md
 
 RegistrationList.java
