@@ -34,7 +34,6 @@ final class RegistrationIndex {
         onlyValidRows = new int[capacity];
 
         Arrays.fill(onlyRetainedRows, NO_ROW);
-        Arrays.fill(onlyRetainedRows, NO_ROW);
         Arrays.fill(onlyValidRows, NO_ROW);
     }
 
@@ -173,6 +172,7 @@ final class RegistrationIndex {
         onlyRetainedRows = new int[newCapacity];
         onlyValidRows = new int[newCapacity];
 
+        Arrays.fill(onlyRetainedRows, NO_ROW);
         Arrays.fill(onlyValidRows, NO_ROW);
 
         occupied = 0;
