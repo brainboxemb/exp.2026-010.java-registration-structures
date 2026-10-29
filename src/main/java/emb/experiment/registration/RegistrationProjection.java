@@ -137,6 +137,7 @@ public final class RegistrationProjection implements ProjectionModel {
 
     private Row[] rows;
     private int size;
+    private boolean rebuilding;
     private int rowGrowthEvents;
     private final Ranking ranking;
     private final ChangeJournal changes;
@@ -160,6 +161,18 @@ public final class RegistrationProjection implements ProjectionModel {
                 : new SortedArrayRanking(initialCapacity);
     }
 
+    @Override public void beginRebuild() {
+        if (size != 0 || rebuilding)
+            throw new IllegalStateException("rebuild requires a newly created empty projection");
+        rebuilding = true;
+    }
+
+    @Override public void completeRebuild() {
+        if (!rebuilding) throw new IllegalStateException("rebuild was not started");
+        rebuilding = false;
+        changes.resetToRevision(stateRevision);
+    }
+
     public boolean add(long sequence, int id, long passageMillis) {
         if (sequence <= lastMutationSequence || passageMillis < 0)
             throw new IllegalArgumentException("ADD sequence must increase and passage must be UTC epoch ms");
@@ -176,8 +189,9 @@ public final class RegistrationProjection implements ProjectionModel {
         }
         lastMutationSequence = sequence;
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
-                sequence, sequence, invalidatesRanking);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.ADDED, id,
+                    sequence, sequence, invalidatesRanking);
         return true;
     }
 
@@ -197,8 +211,9 @@ public final class RegistrationProjection implements ProjectionModel {
                 lastMutationSequence = sequence;
                 lastRevokeSequence = sequence;
                 stateRevision++;
-                changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
-                        sequence, row.sequence, invalidatesRanking);
+                if (!rebuilding)
+                    changes.record(stateRevision, ChangeJournal.Kind.REVOKED, id,
+                            sequence, row.sequence, invalidatesRanking);
                 return true;
             }
         }
@@ -211,8 +226,9 @@ public final class RegistrationProjection implements ProjectionModel {
         if (previous != null && previous.longValue() == startEpochMillis) return false;
         boolean invalidatesRanking = updateRowsForStart(id);
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.START_SET, id,
-                0L, 0L, invalidatesRanking);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.START_SET, id,
+                    0L, 0L, invalidatesRanking);
         return true;
     }
 
@@ -220,8 +236,9 @@ public final class RegistrationProjection implements ProjectionModel {
         if (stageStarts.remove(id) == null) return false;
         boolean invalidatesRanking = updateRowsForStart(id);
         stateRevision++;
-        changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id,
-                0L, 0L, invalidatesRanking);
+        if (!rebuilding)
+            changes.record(stateRevision, ChangeJournal.Kind.START_DELETED, id,
+                    0L, 0L, invalidatesRanking);
         return true;
     }
 
@@ -265,6 +282,7 @@ public final class RegistrationProjection implements ProjectionModel {
             else high = middle;
         }
 
+        if (rebuilding) throw new IllegalStateException("historical replay incomplete");
         int visited = 0;
         for (int i = low; i < size && visited < limit; i++) {
             Row row = rows[i];
