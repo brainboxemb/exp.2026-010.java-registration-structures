@@ -1,4 +1,4 @@
-name: Java ranking experiment
+name: Java registration experiment
 
 on:
   push:
