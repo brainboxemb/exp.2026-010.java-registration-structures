@@ -85,14 +85,12 @@ public final class StageTiming {
      */
     public static long elapsedMillisOrMissing(long compactUtc, long passageEpochMillis) {
         if (hasDate(compactUtc)) {
-            long elapsed = passageEpochMillis
-                    - dateTime(compactUtc).toInstant(ZoneOffset.UTC).toEpochMilli();
-
+            long elapsed = passageEpochMillis - compactDateTimeEpochMillis(compactUtc);
             return elapsed >= 0L ? elapsed : NO_ELAPSED_MILLIS;
         }
 
         long passageMillisOfDay = Math.floorMod(passageEpochMillis, DAY_MILLIS);
-        long startMillisOfDay = timeOfDayMillis(time(compactUtc));
+        long startMillisOfDay = compactTimeMillis(compactUtc);
         long elapsed = passageMillisOfDay - startMillisOfDay;
 
         if (elapsed < 0L)
@@ -160,7 +158,14 @@ public final class StageTiming {
                 + value.getNano() / CENTISECOND_NANOS;
     }
 
-    private static LocalDateTime dateTime(long compactUtc) {
+    /**
+     * Parses one dated compact UTC value directly to epoch millis.
+     *
+     * This is the hot RegistrationList mutation path. It intentionally avoids
+     * constructing LocalDate/LocalTime/LocalDateTime objects for every cached
+     * elapsed-time recalculation.
+     */
+    private static long compactDateTimeEpochMillis(long compactUtc) {
         if (!hasDate(compactUtc))
             throw new IllegalArgumentException("compactUtc has no date");
 
@@ -172,44 +177,91 @@ public final class StageTiming {
         int day = (int) (remainder / 100_000_000L);
         remainder %= 100_000_000L;
 
-        try {
-            return LocalDateTime.of(
-                    LocalDate.of(year, month, day),
-                    time(remainder));
-        } catch (DateTimeException ex) {
-            throw new IllegalArgumentException(
-                    "invalid compact UTC date/time " + compactUtc,
-                    ex);
-        }
+        validateDate(year, month, day);
+        long epochDay = epochDay(year, month, day);
+        return epochDay * DAY_MILLIS + compactTimeMillis(remainder);
     }
 
-    private static LocalTime time(long compactUtc) {
-        if (compactUtc < 0L)
-            throw new IllegalArgumentException("compactUtc must not be negative");
-        if (compactUtc >= DATE_THRESHOLD)
-            throw new IllegalArgumentException("compactUtc time part is too large");
+    /** Parses HHmmsscc to milliseconds since UTC midnight without allocation. */
+    private static long compactTimeMillis(long compactTime) {
+        if (compactTime < 0L || compactTime >= DATE_THRESHOLD)
+            throw new IllegalArgumentException("invalid compact UTC time " + compactTime);
 
-        int hour = (int) (compactUtc / 1_000_000L);
-        long remainder = compactUtc % 1_000_000L;
+        int hour = (int) (compactTime / 1_000_000L);
+        long remainder = compactTime % 1_000_000L;
         int minute = (int) (remainder / 10_000L);
         remainder %= 10_000L;
         int second = (int) (remainder / 100L);
         int centisecond = (int) (remainder % 100L);
 
-        try {
-            return LocalTime.of(
-                    hour,
-                    minute,
-                    second,
-                    centisecond * (int) CENTISECOND_NANOS);
-        } catch (DateTimeException ex) {
-            throw new IllegalArgumentException(
-                    "invalid compact UTC time " + compactUtc,
-                    ex);
+        if (hour < 0 || hour > 23
+                || minute < 0 || minute > 59
+                || second < 0 || second > 59
+                || centisecond < 0 || centisecond > 99) {
+            throw new IllegalArgumentException("invalid compact UTC time " + compactTime);
         }
+
+        return hour * 3_600_000L
+                + minute * 60_000L
+                + second * 1_000L
+                + centisecond * 10L;
+    }
+
+    private static void validateDate(int year, int month, int day) {
+        if (year < 0 || year > 999_999_999)
+            throw new IllegalArgumentException("invalid compact UTC year " + year);
+        if (month < 1 || month > 12)
+            throw new IllegalArgumentException("invalid compact UTC month " + month);
+
+        int length;
+        switch (month) {
+            case 2:
+                length = isLeapYear(year) ? 29 : 28;
+                break;
+            case 4:
+            case 6:
+            case 9:
+            case 11:
+                length = 30;
+                break;
+            default:
+                length = 31;
+                break;
+        }
+
+        if (day < 1 || day > length)
+            throw new IllegalArgumentException("invalid compact UTC day " + day);
+    }
+
+    /** Gregorian date to epoch-day, equivalent to LocalDate.toEpochDay(). */
+    private static long epochDay(int year, int month, int day) {
+        long y = year;
+        long total = 365L * y;
+
+        if (y >= 0L) {
+            total += (y + 3L) / 4L
+                    - (y + 99L) / 100L
+                    + (y + 399L) / 400L;
+        } else {
+            total -= y / -4L - y / -100L + y / -400L;
+        }
+
+        total += (367L * month - 362L) / 12L;
+        total += day - 1L;
+
+        if (month > 2) {
+            total--;
+            if (!isLeapYear(year))
+                total--;
+        }
+
+        return total - 719_528L;
+    }
+
+    private static boolean isLeapYear(int year) {
+        return (year & 3) == 0 && (year % 100 != 0 || year % 400 == 0);
     }
 
     private static long timeOfDayMillis(LocalTime value) {
         return value.toNanoOfDay() / 1_000_000L;
-    }
-}
+    }}
