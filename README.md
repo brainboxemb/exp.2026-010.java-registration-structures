@@ -50,8 +50,9 @@ Two deliberately small custom list implementations are part of the experiment:
 - `LongArrayList` — primitive growable list used by rebuild+sort.
 - `SortedLongList` — primitive sorted growable list used by sorted-array ranking.
 
-There is no `Projection`, display model, OPEN/CLOSE simulation or application API in
-this branch. Those are separate questions.
+The branch models the registration-state flow, silent OPEN reconstruction and
+snapshot/mutation display synchronization, but it does **not** implement the complete Timing
+Point application, LogBook persistence, HTTP/protocol API or engineering-client UI.
 
 ## Correctness first
 
@@ -68,6 +69,7 @@ Tests also cover duplicates, capacity growth, silent initial LogBook load and sn
 
 ```sh
 java -cp target/classes emb.experiment.ranking.RankingBenchmark
+java -cp target/classes emb.experiment.active.RegistrationListBenchmark
 ```
 
 Default populations are **500, 1,000 and 5,000**. The diagnostic benchmark measures:
@@ -93,7 +95,8 @@ java -jar target/benchmarks.jar -prof gc
 ```
 
 JMH covers rank query/replace-roundtrip plus RegistrationList snapshot, direct-row sync,
-per-registration sync scan, mutation-batch read and start-change+sync roundtrip.
+single-retained-row and multiple-retained-row registration sync, mutation-batch read, and
+single/multiple-row start-change+sync roundtrips.
 
 Final architecture selection still requires physical Pi Zero qualification.
 
