@@ -23,6 +23,7 @@ public final class ChangeJournal {
     private final byte[] kinds;
     private final boolean[] rankingInvalidated;
     private long latestRevision;
+    private long resetFloor;
 
     public ChangeJournal(int capacity) {
         if (capacity < 1) throw new IllegalArgumentException("capacity must be positive");
@@ -47,9 +48,20 @@ public final class ChangeJournal {
         latestRevision = revision;
     }
 
+    /**
+     * Starts a new silent-rebuild epoch: all earlier events become unreadable.
+     * An initial full snapshot should carry this revision as its change cursor.
+     */
+    void resetToRevision(long revision) {
+        if (revision < latestRevision)
+            throw new IllegalArgumentException("reset cannot move revision backwards");
+        latestRevision = revision;
+        resetFloor = revision;
+    }
+
     /** Earliest cursor that can receive every change after it. */
     public long oldestUsableCursor() {
-        return Math.max(0L, latestRevision - kinds.length);
+        return Math.max(resetFloor, latestRevision - kinds.length);
     }
 
     /** Latest revision; caller may store it alongside a fully synchronized view. */
