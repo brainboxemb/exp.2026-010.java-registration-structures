@@ -32,8 +32,15 @@ jobs:
           java -jar target/benchmarks.jar             -rf json             -rff jmh-result.json             -prof gc
           cat jmh-result.json
 
+      - name: Measure retained object graphs
+        run: |
+          java -cp target/benchmarks.jar emb.experiment.jmh.MemoryFootprintProbe > memory-footprint.csv
+          cat memory-footprint.csv
+
       - uses: actions/upload-artifact@v4
         with:
           name: experiment-010-jmh
-          path: jmh-result.json
+          path: |
+            jmh-result.json
+            memory-footprint.csv
           retention-days: 30
