@@ -86,7 +86,7 @@ The ranking index may have several implementations:
 
 Those are the implementations compared by Experiment 010.
 
-## 2. Ranking is calculated at read time
+## 2. RankingIndex is calculated at read time
 
 Rank is **not stored in Registration**.
 
