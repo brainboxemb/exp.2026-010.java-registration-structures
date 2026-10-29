@@ -277,21 +277,27 @@ For the normal lookup case it may additionally keep one small entry per
 
 ```text
 registrationId -> {
+    retainedCount
+    onlyRetainedRow
     validCount
-    onlyValidPosition
+    onlyValidRow
 }
 ```
 
 Meaning:
 
 ```text
-validCount = 0   no currently valid ADD for this registrationId
-validCount = 1   onlyValidPosition points directly to that row
-validCount > 1   exceptional case; scan the registration list
+retainedCount = 0   no retained ADD row
+retainedCount = 1   onlyRetainedRow gives direct start/sync row
+retainedCount > 1   start/sync uses the exceptional list scan
+
+validCount = 0      no currently valid ADD
+validCount = 1      onlyValidRow gives direct REV row
+validCount > 1      REV uses the exceptional reverse scan
 ```
 
 When a REV changes a registrationId from multiple valid rows back to exactly
-one, a one-time list scan may be used to rediscover `onlyValidPosition`.
+one, a one-time list scan may be used to rediscover `onlyValidRow`.
 
 This deliberately avoids maintaining a second complex list of positions.
 With roughly 500 retained registrations, scanning the complete list in the
@@ -506,7 +512,7 @@ LogBook                         authoritative history
    v
 RegistrationList             retained ADD rows for active WP
    |
-   +-- RegistrationIndex       validCount + onlyValidRow + current start
+   +-- RegistrationIndex       retained/valid counts + direct single-row positions + start
    |        |
    |        +-- unique registration counts
    |
