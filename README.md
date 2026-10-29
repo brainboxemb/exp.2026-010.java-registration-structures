@@ -1,9 +1,9 @@
 # Experiment 010 — Java registration structures
 
 **New to this repository? Start with [ARCHITECTURE.md](ARCHITECTURE.md).**
-It explains the experiment step by step using a four-record LogBook example,
-then tells you which Java file to read first. `DiagnosticBenchmark` is only
-a measurement tool; it is not the application entry point.
+It explains the experiment step by step using a small LogBook example.
+**Read `ExampleWalkthrough.java` first**, not the benchmark or the ranking internals.
+`DiagnosticBenchmark` is only a measurement tool; it is not the application entry point.
 
 Standalone Java 8-compatible experiment for Event Timing registration-state architecture.
 
@@ -35,6 +35,8 @@ The trial uses absolute UTC epoch milliseconds for both starts and passages.
 
 ```sh
 mvn -B verify
+java -cp target/classes emb.experiment.registration.ExampleWalkthrough
+# Optional, diagnostic numbers only:
 java -cp target/classes emb.experiment.registration.DiagnosticBenchmark 500
 ```
 
