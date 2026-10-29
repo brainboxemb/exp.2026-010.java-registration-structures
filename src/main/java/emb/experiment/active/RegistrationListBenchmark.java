@@ -180,8 +180,10 @@ public final class RegistrationListBenchmark {
                         () -> mutationBatch(kind, population, batch, meter));
 
                 if (population == 500) {
-                    report("mixed_race_1024", kind.name(), population, 1024,
-                            () -> mixedRace(kind, meter));
+                    report("mixed_race_cross_512", kind.name(), population, 1024,
+                            () -> mixedRace(kind, 512, meter));
+                    report("mixed_race_preallocated_1024", kind.name(), population, 1024,
+                            () -> mixedRace(kind, 1024, meter));
                 }
             }
         }
@@ -294,8 +296,12 @@ public final class RegistrationListBenchmark {
      * Valid-registration count stays roughly stable while retained rows grow
      * from 500 to 756, intentionally crossing the 512 row-capacity boundary.
      */
-    private static Measurement mixedRace(RankingIndexKind kind, Meter meter) {
-        RegistrationList list = filledUnique(kind, 500);
+    private static Measurement mixedRace(
+            RankingIndexKind kind,
+            int rowCapacity,
+            Meter meter) {
+
+        RegistrationList list = filledUnique(kind, 500, rowCapacity);
         RowChecksum rows = new RowChecksum();
         MutationChecksum mutationVisitor = new MutationChecksum();
 
@@ -504,7 +510,6 @@ public final class RegistrationListBenchmark {
     }
 
     private static RegistrationList emptyListOnly(int population) {
-        int rowCapacity = normalCapacity(population);
         int indexCapacity = nextPowerOfTwo(Math.max(2, population * 2));
         int mutationCapacity = nextPowerOfTwo(Math.max(8, population * 2));
 
@@ -516,7 +521,15 @@ public final class RegistrationListBenchmark {
     }
 
     private static RegistrationList filledUnique(RankingIndexKind kind, int population) {
-        RegistrationList list = emptyList(kind, population);
+        return filledUnique(kind, population, normalCapacity(population));
+    }
+
+    private static RegistrationList filledUnique(
+            RankingIndexKind kind,
+            int population,
+            int rowCapacity) {
+
+        RegistrationList list = emptyList(kind, population, rowCapacity);
 
         for (int i = 0; i < population; i++)
             list.setStart(registrationId(i), BASE_TIME);
@@ -528,6 +541,13 @@ public final class RegistrationListBenchmark {
     }
 
     private static RegistrationList emptyList(RankingIndexKind kind, int population) {
+        return emptyList(kind, population, normalCapacity(population));
+    }
+
+    private static RegistrationList emptyList(
+            RankingIndexKind kind,
+            int population,
+            int rowCapacity) {
         int rowCapacity = normalCapacity(population);
         int indexCapacity = nextPowerOfTwo(Math.max(2, population * 2));
         int mutationCapacity = nextPowerOfTwo(Math.max(8, population * 2));
