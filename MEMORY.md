@@ -452,7 +452,30 @@ preferred memory shape because of boxed keys/counts and tree-node churn.
 The custom AVL may preallocate nodes, but for the expected ~500 entries the sorted primitive
 array is currently the simpler candidate and should remain the default comparison point.
 
-## 10. Expected operation costs
+## 10. Approximate primitive payload at normal capacity
+
+For a normal preallocation of 512 registration rows, 1024 registration-index slots,
+1024 mutation slots and a 512-entry sorted ranking array, the primitive payload is roughly:
+
+| Structure | Primitive payload |
+| --- | ---: |
+| RegistrationList row arrays | 18,944 bytes |
+| RegistrationIndex arrays | 24,576 bytes |
+| RegistrationMutations arrays | 6,144 bytes |
+| Sorted RankingIndex long[] | 4,096 bytes |
+| **Total** | **53,760 bytes** |
+
+This is about 52.5 KiB of primitive payload. JVM object/array headers and alignment are not
+included, so actual heap use is somewhat higher.
+
+The cached row `startTime[]` accounts for only 4,096 bytes at 512 rows. Keeping it is
+therefore a deliberate readability/read-performance choice rather than trying to derive start
+time from passage/elapsed on every visitor.
+
+The TreeMap and pooled-AVL candidates have substantially different object overhead and should
+be measured with a retained-heap profiler rather than estimated from this table.
+
+## 11. Expected operation costs
 
 For normal capacity:
 
@@ -470,7 +493,7 @@ For normal capacity:
 Here `N` is normally around 500 and `K` is the number of affected valid rows for one
 registrationId.
 
-## 11. What should be measured
+## 12. What should be measured
 
 Before adding more indexes or caches, measure:
 
@@ -486,7 +509,7 @@ Before adding more indexes or caches, measure:
 An optimization should only be added when one of these measurements shows that the simple
 structure is inadequate.
 
-## 12. Invariants
+## 13. Invariants
 
 The implementation should test these invariants continuously:
 
