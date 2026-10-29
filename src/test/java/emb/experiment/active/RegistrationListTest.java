@@ -146,6 +146,48 @@ final class RegistrationListTest {
     }
 
     @Test
+    void initialLogBookLoadBuildsStateWithoutCreatingDisplayMutations() {
+        for (RankingIndexKind kind : RankingIndexKind.values()) {
+            RegistrationList list = list(kind, 8, 16, 8);
+
+            list.setStart(A1, 1000);
+            list.setStart(A2, 1000);
+
+            list.beginInitialLoad();
+            list.add(1, A1, 1100);
+            list.add(2, A2, 1200);
+            list.add(3, A1, 1300);
+            assertTrue(list.revoke(4, A1, 1300));
+
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> list.visitSnapshot((row, seq, id, passage, start, elapsed, valid, rank) -> {}));
+
+            list.finishInitialLoad();
+
+            assertEquals(0, list.latestMutationRevision(), kind.name());
+            assertEquals(3, list.size(), kind.name());
+            assertEquals(2, list.uniqueValidRegistrationCount(), kind.name());
+
+            List<String> rows = rows(list);
+            assertEquals("0:" + A1 + ":100:true:1", rows.get(0), kind.name());
+            assertEquals("1:" + A2 + ":200:true:2", rows.get(1), kind.name());
+            assertEquals("2:" + A1 + ":300:false:0", rows.get(2), kind.name());
+
+            long marker = list.visitSnapshot(
+                    (row, seq, id, passage, start, elapsed, valid, rank) -> {});
+            assertEquals(0, marker, kind.name());
+
+            list.add(5, A1, 1150);
+            assertEquals(1, list.latestMutationRevision(), kind.name());
+            assertEquals(
+                    listOf("1:ROW_ADDED:3:1"),
+                    mutations(list, marker),
+                    kind.name());
+        }
+    }
+
+    @Test
     void snapshotMarkerAndMutationStreamFormOneSynchronizationCursor() {
         RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 3);
         list.setStart(A1, 1000);
