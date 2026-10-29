@@ -9,7 +9,7 @@ import java.util.Arrays;
  * This represents the essential cost pattern of the current full rebuild+sort
  * approach without pulling the rest of the Timing Point application into the experiment.
  */
-public final class RebuildSortRanking implements Ranking {
+public final class RebuildSortRanking implements RankingIndex {
     private final LongArrayList values;
     private long[] sorted;
     private boolean dirty = true;
