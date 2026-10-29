@@ -7,11 +7,21 @@ import java.util.Arrays;
 /**
  * Allocation-conscious active registration state for one timing point.
  *
- * Rows are append-only and stored in primitive parallel arrays. REV only clears
- * VALID; stable row positions are therefore safe mutation/snapshot subjects.
+ * This is the primary retained registration list.
+ *
+ * One logical row is stored at the same index in primitive parallel arrays:
+ * sequence[], registrationId[], passageTime[], startTime[], elapsedTime[], flags[].
+ *
+ * Rows are append-only. REV only clears VALID, so row positions stay stable and
+ * can safely be referenced by display mutations.
+ *
+ * RaceData remains authoritative for the current stage start per RegistrationId.
+ * ADD receives that current start from its caller; the row caches the compact UTC
+ * start and derived elapsed value. RegistrationIndex only stores counts/direct
+ * row positions, and RankingIndex only stores rankable elapsed values.
  *
  * Passage times are absolute UTC epoch milliseconds. Cached start times use
- * the production compact UTC representation (yyyyMMddHHmmsscc or HHmmsscc).
+ * compact UTC yyyyMMddHHmmsscc or HHmmsscc.
  */
 public final class RegistrationList {
     public interface Visitor {
