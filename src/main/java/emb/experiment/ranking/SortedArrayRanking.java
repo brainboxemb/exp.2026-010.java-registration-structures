@@ -6,7 +6,7 @@ package emb.experiment.ranking;
  * Rank lookup is O(log N). Mutations use binary search plus array shifts.
  * Around ~500 registrations this simple solution may be very competitive.
  */
-public final class SortedArrayRanking implements Ranking {
+public final class SortedArrayRanking implements RankingIndex {
     private final SortedLongList values;
 
     public SortedArrayRanking(int initialCapacity) {
