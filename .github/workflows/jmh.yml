@@ -1,0 +1,32 @@
+name: JMH benchmarks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  jmh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Verify normal Java build
+        run: mvn -B verify
+
+      - name: Build JMH benchmark jar
+        run: mvn -B -Pjmh -DskipTests package
+
+      - name: Run JMH
+        run: |
+          java -jar target/benchmarks.jar             -rf json             -rff jmh-result.json             -prof gc
+          cat jmh-result.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experiment-010-jmh
+          path: jmh-result.json
+          retention-days: 30
