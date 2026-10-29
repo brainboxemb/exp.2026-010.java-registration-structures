@@ -1,0 +1,83 @@
+name: Pi Zero qualification bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/ranking-structures-clean
+    paths:
+      - src/main/**
+      - src/jmh/**
+      - scripts/run-pi-qualification.sh
+      - PI.md
+      - pom.xml
+      - .github/workflows/pi-bundle.yml
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Verify Java 8-compatible experiment
+        run: mvn -B verify
+
+      - name: Package normal experiment jar
+        run: |
+          mvn -B -DskipTests package
+          mkdir -p out
+          cp target/java-registration-structures-0.1.0-SNAPSHOT.jar out/experiment-010.jar
+
+      - name: Package JMH jar
+        run: |
+          mvn -B -Pjmh -DskipTests package
+          cp target/benchmarks.jar out/experiment-010-jmh.jar
+
+      - name: Add runner, identity and checksums
+        run: |
+          sh -n scripts/run-pi-qualification.sh
+          cp scripts/run-pi-qualification.sh out/
+          chmod +x out/run-pi-qualification.sh
+          {
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "commit=$GITHUB_SHA"
+            echo "java_source_target=8"
+            echo "bundle_workflow=Pi Zero qualification bundle"
+          } > out/BUNDLE-INFO
+          cd out
+          sha256sum experiment-010.jar experiment-010-jmh.jar run-pi-qualification.sh BUNDLE-INFO > BUNDLE-SHA256SUMS
+          cat BUNDLE-INFO
+          cat BUNDLE-SHA256SUMS
+          ls -lh
+
+      - name: Smoke-run packaged bundle
+        run: |
+          cd out
+          RUN_JMH=1 \
+          JMH_FORKS=1 \
+          JMH_WARMUPS=1 \
+          JMH_ITERATIONS=1 \
+          JMH_TIME=100ms \
+          OUT_DIR=ci-smoke-results \
+          ./run-pi-qualification.sh
+          test -s ci-smoke-results/ranking-500.csv
+          test -s ci-smoke-results/registration-list-500.csv
+          test -s ci-smoke-results/jmh-selected.json
+          test -s ci-smoke-results/environment-before.txt
+          test -s ci-smoke-results/environment-after.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experiment-010-pi-bundle
+          path: |
+            out/experiment-010.jar
+            out/experiment-010-jmh.jar
+            out/run-pi-qualification.sh
+            out/BUNDLE-INFO
+            out/BUNDLE-SHA256SUMS
+          retention-days: 30

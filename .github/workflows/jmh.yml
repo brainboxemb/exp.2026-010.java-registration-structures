@@ -1,0 +1,51 @@
+name: JMH benchmarks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/ranking-structures-clean
+    paths:
+      - src/main/**
+      - src/jmh/**
+      - .github/workflows/jmh.yml
+      - pom.xml
+
+jobs:
+  jmh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Verify normal Java build
+        run: mvn -B verify
+
+      - name: Build JMH benchmark jar
+        run: mvn -B -Pjmh -DskipTests package
+
+      - name: Run JMH
+        run: |
+          java -jar target/benchmarks.jar \
+            -p implementation=SORTED_ARRAY,POOLED_AVL \
+            -rf json \
+            -rff jmh-result.json \
+            -prof gc
+          cat jmh-result.json
+
+      - name: Measure retained object graphs
+        run: |
+          java -cp target/benchmarks.jar emb.experiment.jmh.MemoryFootprintProbe > memory-footprint.csv
+          cat memory-footprint.csv
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experiment-010-jmh
+          path: |
+            jmh-result.json
+            memory-footprint.csv
+          retention-days: 30
