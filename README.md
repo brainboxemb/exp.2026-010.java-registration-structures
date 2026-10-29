@@ -1,5 +1,10 @@
 # Experiment 010 — Java registration structures
 
+**New to this repository? Start with [ARCHITECTURE.md](ARCHITECTURE.md).**
+It explains the experiment step by step using a four-record LogBook example,
+then tells you which Java file to read first. `DiagnosticBenchmark` is only
+a measurement tool; it is not the application entry point.
+
 Standalone Java 8-compatible experiment for Event Timing registration-state architecture.
 
 The experiment does **not** modify production. The production reference is
