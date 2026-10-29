@@ -247,12 +247,13 @@ public final class RegistrationListBenchmark {
             Meter meter) {
 
         RegistrationList list = filledUniqueListOnly(population);
+        long changedStart = stageStart(1_000L);
 
         long beforeBytes = meter.allocatedBytes();
         long before = System.nanoTime();
 
         for (int i = 0; i < changes; i++) {
-            if (!list.setStart(registrationId(i), stageStart(1_000L)))
+            if (!list.setStart(registrationId(i), changedStart))
                 throw new IllegalStateException("expected changed start");
         }
 
@@ -314,6 +315,14 @@ public final class RegistrationListBenchmark {
         long displayCursor = list.latestMutationRevision();
         long checksum = 0;
 
+        long[] mixedStarts = new long[64 * 4];
+        for (int block = 0; block < 64; block++) {
+            for (int i = 0; i < 4; i++) {
+                mixedStarts[block * 4 + i] =
+                        stageStart((block + 1L) * 100L + i * 10L);
+            }
+        }
+
         long beforeBytes = meter.allocatedBytes();
         long before = System.nanoTime();
 
@@ -337,7 +346,7 @@ public final class RegistrationListBenchmark {
 
             for (int i = 0; i < 4; i++) {
                 int idIndex = baseId + i;
-                long start = stageStart((block + 1L) * 100L + i * 10L);
+                long start = mixedStarts[block * 4 + i];
                 if (!list.setStart(registrationId(idIndex), start))
                     throw new IllegalStateException("mixed workload start did not change");
             }
@@ -453,12 +462,13 @@ public final class RegistrationListBenchmark {
             Meter meter) {
 
         RegistrationList list = filledUnique(kind, population);
+        long changedStart = stageStart(1_000L);
 
         long beforeBytes = meter.allocatedBytes();
         long before = System.nanoTime();
 
         for (int i = 0; i < changes; i++) {
-            if (!list.setStart(registrationId(i), stageStart(1_000L)))
+            if (!list.setStart(registrationId(i), changedStart))
                 throw new IllegalStateException("expected changed start");
         }
 
