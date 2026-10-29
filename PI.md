@@ -74,6 +74,7 @@ The artifact contains:
 experiment-010.jar
 experiment-010-jmh.jar
 run-pi-qualification.sh
+BUNDLE-INFO
 BUNDLE-SHA256SUMS
 ```
 
@@ -114,6 +115,10 @@ The Pi JMH run is deliberately shorter than the desktop evidence:
 - 3 warmup iterations;
 - 5 measurement iterations;
 - 500 ms per iteration;
+
+These defaults are overrideable with `JMH_FORKS`, `JMH_WARMUPS`,
+`JMH_ITERATIONS` and `JMH_TIME`; CI uses shorter values only to smoke-test the
+packaged command line.
 - GC/allocation profiler.
 
 This is enough to check whether the ARMv6 target reverses the desktop architecture conclusion
