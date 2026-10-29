@@ -20,9 +20,9 @@ The corresponding functional flow is described in [FLOW.md](FLOW.md).
 The active state is deliberately split into three structures:
 
 ```text
-ActiveRegistrations
+RegistrationList
     |
-    +-- RegistrationLookup
+    +-- RegistrationIndex
     |
     +-- RankingIndex
     |
@@ -31,14 +31,14 @@ ActiveRegistrations
 
 Each structure has one job.
 
-- **ActiveRegistrations** stores retained ADD rows in chronological order.
-- **RegistrationLookup** accelerates the common lookup by registrationId.
+- **RegistrationList** stores retained ADD rows in chronological order.
+- **RegistrationIndex** accelerates the common lookup by registrationId.
 - **RankingIndex** stores only elapsed times that currently participate in ranking.
 - **RegistrationMutations** is a bounded synchronization journal for displays.
 
 None of these structures replaces the LogBook.
 
-## 2. ActiveRegistrations: append-only primitive row storage
+## 2. RegistrationList: append-only primitive row storage
 
 The preferred representation is a custom structure-of-arrays list rather than one Java
 object per row.
@@ -53,8 +53,8 @@ long[] elapsedTime
 byte[] flags
 ```
 
-The current start time is owned by ActiveRegistrations too, but is stored **once per
-registrationId in RegistrationLookup**, not duplicated in every row.
+The current start time is owned by RegistrationList too, but is stored **once per
+registrationId in RegistrationIndex**, not duplicated in every row.
 
 Logically a visitor can still see:
 
@@ -75,7 +75,7 @@ passageTime[217]
 elapsedTime[217]
 flags[217]
 
-startTime = RegistrationLookup.startTimeFor(registrationId[217])
+startTime = RegistrationIndex.startTimeFor(registrationId[217])
 ```
 
 Suggested flags:
@@ -121,7 +121,7 @@ visible and measurable. Normal ADD/REV processing should not copy the complete l
 The implementation should expose a growth counter in the experiment so boundary costs are
 not hidden.
 
-## 3. RegistrationLookup: fast common case without a complex secondary list
+## 3. RegistrationIndex: fast common case without a complex secondary list
 
 The lookup is keyed by packed `registrationId`.
 
@@ -137,9 +137,9 @@ registrationId -> {
 
 Meanings:
 
-- `retainedCount`: number of ADD rows for this id in ActiveRegistrations;
+- `retainedCount`: number of ADD rows for this id in RegistrationList;
 - `validCount`: number of those rows currently valid;
-- `onlyValidRow`: direct ActiveRegistrations row index when `validCount == 1`.
+- `onlyValidRow`: direct RegistrationList row index when `validCount == 1`.
 
 No list of all row positions is retained.
 
@@ -157,7 +157,7 @@ validCount == 1
 
 validCount > 1
     -> exceptional case
-    -> scan ActiveRegistrations backwards for newest matching valid row
+    -> scan RegistrationList backwards for newest matching valid row
 ```
 
 With around 500 rows, an occasional complete backwards scan is intentionally preferred over
@@ -223,7 +223,7 @@ The current experiment compares:
 The selected production implementation should be preallocated for the normal case and should
 not allocate on every ADD/REV.
 
-Rank itself is never written back into ActiveRegistrations.
+Rank itself is never written back into RegistrationList.
 
 A visitor obtains:
 
@@ -242,9 +242,9 @@ Do not add another per-id list of row positions merely to optimize this rare ope
 Instead:
 
 ```text
-RegistrationLookup.startTime[id] = new start
+RegistrationIndex.startTime[id] = new start
 
-scan ActiveRegistrations
+scan RegistrationList
     for rows with registrationId == changed id:
         if valid + old elapsed:
             RankingIndex.remove(old elapsed)
@@ -257,7 +257,7 @@ scan ActiveRegistrations
 
 At roughly 500 rows this scan is cheap, allocation-free and simple.
 
-Because start time is stored once in RegistrationLookup, this scan changes only cached elapsed
+Because start time is stored once in RegistrationIndex, this scan changes only cached elapsed
 values in the affected rows; it does not rewrite a duplicated start value into every row.
 
 The benchmark should include this operation before deciding that another index is justified.
@@ -281,7 +281,7 @@ long latestRevision
 
 `subject` is interpreted by `kind`:
 
-- ROW_ADDED / ROW_REVOKED: stable ActiveRegistrations row index;
+- ROW_ADDED / ROW_REVOKED: stable RegistrationList row index;
 - START_CHANGED: packed registrationId.
 
 This avoids keeping both `row[]` and `registrationId[]` in every mutation slot.
@@ -312,12 +312,12 @@ record. The LogBook already contains the history.
 - flags can indicate that rank-dependent presentation should be refreshed.
 
 When a consumer reads the mutation, it reads the current row/start data from
-ActiveRegistrations. If ADD and REV both happened before the consumer caught up, receiving the
+RegistrationList. If ADD and REV both happened before the consumer caught up, receiving the
 current invalid row is sufficient to converge to the correct current state; the display does
 not need to reconstruct every intermediate visual state.
 
 The mutation list is a **change/invalidation journal**, not a second copy of registration data.
-When a consumer visits a mutation it can read the current row data from ActiveRegistrations.
+When a consumer visits a mutation it can read the current row data from RegistrationList.
 
 This avoids copying sequence/id/time/etc. into every mutation record.
 
@@ -360,7 +360,7 @@ Preferred flow on the single state/task lane:
 begin serialized snapshot operation
 
 snapshotRevision = RegistrationMutations.latestRevision()
-rowCount = ActiveRegistrations.size()
+rowCount = RegistrationList.size()
 
 visit rows directly
     -> write directly into snapshot encoder / response buffer
@@ -394,7 +394,7 @@ directly and encode it without materializing a temporary list.
 Reading the marker and encoding the rows must belong to the same serialized state operation.
 Otherwise a live mutation could occur between the two and make the marker ambiguous.
 
-Do not return a pointer to mutable ActiveRegistrations and encode it asynchronously after the
+Do not return a pointer to mutable RegistrationList and encode it asynchronously after the
 task lane has resumed. Either encode while state is stable or introduce an explicit immutable
 snapshot representation. The former is preferred for ~500 rows unless measurement shows the
 serialization stalls the state lane too long.
@@ -452,7 +452,7 @@ array is currently the simpler candidate and should remain the default compariso
 
 For normal capacity:
 
-| Operation | ActiveRegistrations | RegistrationLookup | RankingIndex | Allocation |
+| Operation | RegistrationList | RegistrationIndex | RankingIndex | Allocation |
 | --- | --- | --- | --- | --- |
 | ADD | O(1) append | O(1) average | candidate-dependent | none |
 | REV, one valid row | O(1) direct row | O(1) average | candidate-dependent | none |
