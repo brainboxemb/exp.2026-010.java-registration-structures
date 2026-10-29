@@ -52,10 +52,10 @@ this branch. Those are separate questions.
 mvn -B verify
 ```
 
-The tests compare every solution with an independent, intentionally slow oracle:
-a normal Java list where rank is calculated by literally counting all values that
-are smaller. Tests include duplicates, removals, random mutation sequences and
-capacity growth.
+The tests compare every RankingIndex with an independent, intentionally slow oracle.
+A second independent RegistrationList oracle drives seeded ADD/REV/start/delete workloads
+and verifies every row, rank, unique count, current start and mutation revision.
+Tests also cover duplicates, capacity growth, silent initial LogBook load and snapshot cursors.
 
 ## Timing
 
