@@ -1,8 +1,9 @@
 # Experiment 010 — Java registration and ranking structures
 
 **Start with [FLOW.md](FLOW.md)** for the functional flow,
-**[MEMORY.md](MEMORY.md)** for the concrete memory/search structures, and
-**[DECISION.md](DECISION.md)** for the current evidence-based architecture choice.
+**[MEMORY.md](MEMORY.md)** for the concrete memory/search structures,
+**[DECISION.md](DECISION.md)** for the current evidence-based architecture choice, and
+**[PI.md](PI.md)** for the physical Pi Zero qualification procedure.
 
 Together they define what belongs in the LogBook, RegistrationList,
 RegistrationIndex, RankingIndex and RegistrationMutations, including how to
@@ -92,7 +93,11 @@ java -jar target/benchmarks.jar -prof gc
 JMH covers rank query/replace-roundtrip plus RegistrationList snapshot, direct-row sync,
 per-registration sync scan, mutation-batch read and start-change+sync roundtrip.
 
-Final architecture selection still requires Pi Zero qualification.
+Final architecture selection still requires physical Pi Zero qualification.
+
+The repository publishes a self-contained **Pi Zero qualification bundle** with Java 8
+bytecode, the selected JMH comparison, checksums and an environment/throttling capture script.
+No Maven/compiler is needed on the Pi and the generic Brainbox Zero image remains separate.
 
 ## Code reading order
 
@@ -102,6 +107,7 @@ Start here:
 FLOW.md
 MEMORY.md
 DECISION.md
+PI.md
 
 RegistrationList.java
 RegistrationIndex.java
