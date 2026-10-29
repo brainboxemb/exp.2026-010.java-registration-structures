@@ -79,38 +79,43 @@ final class RegistrationListOracleTest {
             if (previous != null && previous.longValue() == start)
                 return false;
 
-            boolean hasRetainedRow = false;
+            boolean rowChanged = false;
             for (Row row : rows) {
-                if (row.id != id)
+                if (row.id != id || row.start == start)
                     continue;
 
-                hasRetainedRow = true;
+                rowChanged = true;
                 row.start = start;
                 row.elapsed = elapsed(start, row.passage);
             }
 
-            if (hasRetainedRow)
+            if (rowChanged)
                 mutationRevision++;
-            return true;
+            return rowChanged;
         }
 
         boolean deleteStart(int id) {
             if (starts.remove(id) == null)
                 return false;
 
-            boolean hasRetainedRow = false;
+            boolean rowChanged = false;
             for (Row row : rows) {
-                if (row.id != id)
+                if (row.id != id || row.start == RegistrationList.NO_TIME)
                     continue;
 
-                hasRetainedRow = true;
+                rowChanged = true;
                 row.start = RegistrationList.NO_TIME;
                 row.elapsed = RegistrationList.NO_TIME;
             }
 
-            if (hasRetainedRow)
+            if (rowChanged)
                 mutationRevision++;
-            return true;
+            return rowChanged;
+        }
+
+        long currentStart(int id) {
+            Long start = starts.get(id);
+            return start == null ? RegistrationList.NO_TIME : start.longValue();
         }
 
         int rank(Row target) {
@@ -202,7 +207,8 @@ final class RegistrationListOracleTest {
             for (int i = 0; i < 20; i++) {
                 int id = id(i);
                 long start = compactStart(BASE + random.nextInt(2000));
-                assertEquals(oracle.setStart(id, start), actual.setStart(id, start), kind.name());
+                assertFalse(oracle.setStart(id, start), kind.name());
+                assertFalse(actual.setStart(id, start), kind.name());
             }
             assertEquivalent(kind, actual, oracle);
 
@@ -212,9 +218,10 @@ final class RegistrationListOracleTest {
                 if (choice < 48 || oracle.rows.isEmpty()) {
                     int id = id(random.nextInt(80));
                     long passage = BASE + random.nextInt(20_000);
+                    long currentStart = oracle.currentStart(id);
                     sequence++;
                     oracle.add(sequence, id, passage);
-                    actual.add(sequence, id, passage);
+                    actual.add(sequence, id, passage, currentStart);
                 } else if (choice < 70) {
                     boolean useReal = random.nextInt(10) < 8;
                     Row row = useReal ? oracle.randomRow(random, true) : null;
@@ -291,11 +298,6 @@ final class RegistrationListOracleTest {
             assertEquals(oracle.validCount(id), actual.validCount(id), kind + " validCount " + i);
             assertEquals(oracle.retainedCount(id), actual.retainedCount(id), kind + " retainedCount " + i);
 
-            Long expectedStart = oracle.starts.get(id);
-            assertEquals(
-                    expectedStart == null ? RegistrationList.NO_TIME : expectedStart.longValue(),
-                    actual.startTime(id),
-                    kind + " start " + i);
         }
 
         // Exercise the per-registration visitor used by START_CHANGED sync.
