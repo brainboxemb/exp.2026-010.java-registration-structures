@@ -149,6 +149,60 @@ final class RegistrationListTest {
     }
 
     @Test
+    void timeOnlyStageStartCrossesMidnightInsideRegistrationList() {
+        RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
+        long passage = Instant.parse("2026-10-30T00:30:00Z").toEpochMilli();
+
+        assertTrue(list.setStart(A1, 23_50_00_00L));
+        list.add(1, A1, passage);
+
+        final long[] observed = new long[2];
+        list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
+            observed[0] = elapsed;
+            observed[1] = rank;
+        });
+
+        assertEquals(40L * 60L * 1000L, observed[0]);
+        assertEquals(1L, observed[1]);
+    }
+
+    @Test
+    void timeOnlyStageStartAtExactlyTwelveHoursIsNotRankable() {
+        RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
+        long passage = Instant.parse("2026-10-30T12:00:00Z").toEpochMilli();
+
+        assertTrue(list.setStart(A1, 00_00_00_00L));
+        list.add(1, A1, passage);
+
+        final long[] observed = new long[2];
+        list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
+            observed[0] = elapsed;
+            observed[1] = rank;
+        });
+
+        assertEquals(RegistrationList.NO_TIME, observed[0]);
+        assertEquals(0L, observed[1]);
+    }
+
+    @Test
+    void datedCompactStageStartUsesExplicitDateInRegistrationList() {
+        RegistrationList list = list(RankingIndexKind.SORTED_ARRAY, 8, 16, 8);
+        long passage = Instant.parse("2026-01-01T00:00:10Z").toEpochMilli();
+
+        assertTrue(list.setStart(A1, 2025_12_31_23_59_50_00L));
+        list.add(1, A1, passage);
+
+        final long[] observed = new long[2];
+        list.visitRow(0, (row, seq, id, passageTime, start, elapsed, valid, rank) -> {
+            observed[0] = elapsed;
+            observed[1] = rank;
+        });
+
+        assertEquals(20_000L, observed[0]);
+        assertEquals(1L, observed[1]);
+    }
+
+    @Test
     void initialLogBookLoadBuildsStateWithoutCreatingDisplayMutations() {
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             RegistrationList list = list(kind, 8, 16, 8);
