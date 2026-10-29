@@ -54,6 +54,28 @@ Current references:
 - https://docs.azul.com/core/supported-platforms
 - https://cdn.azul.com/zulu/bin/
 
+## Current validated bundle baseline
+
+The latest fully smoke-tested bundle for the selected structure is:
+
+```text
+commit:   16b18dfb706562990271fa14bdc88c7661b0b138
+workflow: https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40857871417
+artifact: experiment-010-pi-bundle
+artifact id: 12890211980
+```
+
+That workflow successfully:
+- verified the Java build;
+- built the normal Java 8-compatible jar;
+- built the JMH jar;
+- generated bundle identity + SHA-256 files;
+- ran the packaged diagnostics;
+- ran the selected short JMH smoke from the packaged bundle.
+
+The later branch changes after this commit are documentation/workflow-only unless another
+bundle baseline is explicitly recorded here.
+
 ## Build/download the bundle
 
 GitHub Actions workflow:
