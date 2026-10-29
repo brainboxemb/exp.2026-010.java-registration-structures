@@ -2,8 +2,8 @@
 
 Date: 2026-10-29
 
-Status: **preferred experiment candidate; production migration still requires Pi Zero and
-production StageTiming validation**
+Status: **preferred experiment candidate; production migration still requires Pi Zero
+qualification plus production adapter/client regression fixtures**
 
 ## Decision
 
@@ -52,28 +52,31 @@ engineering trade-off.
 
 Forked JMH evidence:
 
-https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40850108543
+https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40857675674
 
 | Operation | Sorted array | Pooled AVL |
 | --- | ---: | ---: |
-| Pure rank lookup | 12.031 ns | **8.281 ns** |
-| Replace/prepare/rank/restore | **97.012 ns** | 143.250 ns |
-| Direct row sync | 12.199 ns | **9.295 ns** |
-| Per-registration sync scan | 348.759 ns | 343.784 ns |
-| 500-row snapshot | 5.867 µs | **5.371 µs** |
-| Start change + sync roundtrip | 1.684 µs | **1.666 µs** |
+| Pure rank lookup | 10.808 ns | **7.532 ns** |
+| Replace/prepare/rank/restore | **98.788 ns** | 125.756 ns |
+| Direct row sync | 10.489 ns | **8.100 ns** |
+| Sync one RegistrationId, one retained row | **14.586 ns** | 14.700 ns |
+| Sync one RegistrationId, multiple retained rows | **320.629 ns** | 324.607 ns |
+| 500-row snapshot | 5.314 µs | **4.758 µs** |
+| Start change + sync, one retained row | **166.774 ns** | 183.288 ns |
+| Start change + sync, multiple retained rows | 1.714 µs | **1.654 µs** |
 
 Both custom candidates have effectively zero steady-state allocation in these JMH paths.
 
-The AVL is faster at pure rank lookup and about 0.5 µs faster for a complete 500-row
-snapshot. The sorted array is materially faster for ranking mutations, while the complete
-start-change path is effectively tied.
+The AVL is faster at pure rank lookup and about 0.56 µs faster for a complete 500-row
+snapshot. SortedArray is materially faster for ranking mutations and also faster for the
+normal single-row start-change+sync path. The exceptional multiple-row path is effectively
+tied.
 
 ### Retained object graph
 
 Memory probe:
 
-https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40852964909
+https://github.com/brainboxemb/exp.2026-010.java-registration-structures/actions/runs/40857675694
 
 | Scope | Sorted array | Pooled AVL |
 | --- | ---: | ---: |
@@ -97,8 +100,9 @@ It requires:
 - 512 Node objects at normal preallocation;
 - substantially larger retained heap.
 
-In exchange it gives only a few nanoseconds on individual reads and about half a microsecond
-on a complete 500-row snapshot on the desktop runner.
+In exchange it gives only a few nanoseconds on individual rank reads and about 0.56 µs on a
+complete 500-row snapshot on the desktop runner, while losing the normal mutation/start-change
+paths.
 
 Keep it in the experiment as the O(log N) scaling/reference implementation.
 
@@ -107,8 +111,8 @@ Keep it in the experiment as the O(log N) scaling/reference implementation.
 TreeMap is not a serious production candidate for this use case.
 
 Forked JMH showed:
-- ~528 ns rank lookup;
-- ~424 µs for a 500-row snapshot;
+- ~494 ns rank lookup;
+- ~361 µs for a 500-row snapshot;
 - ~64 kB allocation per snapshot;
 - ~128 B allocation for a single rank/direct-row read.
 
@@ -124,7 +128,7 @@ Rebuild+sort remains the baseline representing the current cost pattern.
 It performs well for reads after it is already prepared, but a ranking mutation that requires
 another prepare/sort is much more expensive:
 
-- 16.67 µs JMH replace/prepare/rank/restore versus 97 ns for SortedArray.
+- 15.38 µs JMH replace/prepare/rank/restore versus 98.8 ns for SortedArray.
 
 It is therefore not the preferred live ranking structure.
 
@@ -134,12 +138,13 @@ The surrounding list design deliberately does not maintain a dynamic list of row
 for each registrationId.
 
 Evidence:
-- ~500-row exceptional REV scan is around the low-microsecond range in diagnostics;
-- JMH per-registration 500-row sync scan is ~0.35 µs with the custom ranking candidates;
-- no steady-state allocation is needed.
+- one retained row uses `onlyRetainedRow` and synchronizes in ~15 ns in JMH;
+- multiple retained rows deliberately fall back to the ~500-row scan at ~0.32 µs;
+- exceptional REV scanning remains low-microsecond in diagnostics;
+- both paths are effectively allocation-free.
 
-This is cheaper in engineering complexity and memory than maintaining another variable-size
-index for an exceptional case.
+This is cheaper in engineering complexity and memory than maintaining a dynamic collection of
+all row positions per registrationId.
 
 ## Preallocation decision
 
