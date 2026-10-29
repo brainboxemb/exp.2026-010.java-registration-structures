@@ -11,7 +11,7 @@ import java.util.TreeMap;
  *
  * This deliberately exposes the convenience/boxing trade-off of a standard JDK collection.
  */
-public final class TreeMapRanking implements Ranking {
+public final class TreeMapRanking implements RankingIndex {
     private final TreeMap<Long, Integer> counts = new TreeMap<Long, Integer>();
     private int size;
 
