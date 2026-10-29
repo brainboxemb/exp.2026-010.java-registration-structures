@@ -51,9 +51,16 @@ jobs:
       - name: Smoke-run packaged bundle
         run: |
           cd out
-          RUN_JMH=0 OUT_DIR=ci-smoke-results ./run-pi-qualification.sh
+          RUN_JMH=1 \
+          JMH_FORKS=1 \
+          JMH_WARMUPS=1 \
+          JMH_ITERATIONS=1 \
+          JMH_TIME=100ms \
+          OUT_DIR=ci-smoke-results \
+          ./run-pi-qualification.sh
           test -s ci-smoke-results/ranking-500.csv
           test -s ci-smoke-results/registration-list-500.csv
+          test -s ci-smoke-results/jmh-selected.json
           test -s ci-smoke-results/environment-before.txt
           test -s ci-smoke-results/environment-after.txt
 
