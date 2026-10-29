@@ -48,13 +48,13 @@ Conceptually the **row arrays** are:
 ```text
 long[] sequence
 int[]  registrationId
-long[] passageTime
-long[] startTime
-long[] elapsedTime
+long[] passageTime   // absolute UTC epoch millis
+long[] startTime     // compact UTC yyyyMMddHHmmsscc or HHmmsscc
+long[] elapsedTime   // cached derived millis
 byte[] flags
 ```
 
-The current start time is also retained once per registrationId in RegistrationIndex,
+The current compact UTC start is also retained once per registrationId in RegistrationIndex,
 because a start may be known before the first registration arrives. Each retained row
 **also caches the start time that was used to calculate its elapsed time**.
 
