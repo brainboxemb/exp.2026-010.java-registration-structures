@@ -48,15 +48,17 @@ A logical registration view contains:
 ```text
 sequence
 registrationId
-passageTime
-startTime
-elapsedTime
+passageTime          absolute UTC epoch millis
+startTime            compact UTC yyyyMMddHHmmsscc or HHmmsscc
+elapsedTime          cached derived milliseconds
 valid
 ```
 
 `startTime` and `elapsedTime` are both cached in every retained row so a visitor/snapshot
-can read one row without another index lookup. RegistrationIndex also retains the **current**
-start time per registrationId so a later ADD can initialize its row directly.
+can read one row without another index lookup. `startTime` uses the same compact UTC
+representation as production RaceData; `passageTime` remains absolute epoch milliseconds.
+RegistrationIndex also retains the **current** compact start per registrationId so a later ADD
+can initialize its row directly.
 
 The row deliberately does **not** contain `rank`.
 
@@ -549,7 +551,8 @@ interface RankingIndex {
 ## 13. Memory/storage implementation rules
 
 The concrete allocation and search-structure choices are documented in
-[MEMORY.md](MEMORY.md).
+[MEMORY.md](MEMORY.md). Exact production record/rebuild/timing semantics are documented in
+[PRODUCTION-PARITY.md](PRODUCTION-PARITY.md).
 
 Key rules:
 
