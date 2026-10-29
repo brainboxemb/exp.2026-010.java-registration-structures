@@ -303,7 +303,7 @@ public final class RegistrationListBenchmark {
             int rowCapacity,
             Meter meter) {
 
-        RegistrationList list = filledUnique(kind, 500, rowCapacity);
+        RegistrationList list = filledUnique(kind, 500, rowCapacity, 512);
         RowChecksum rows = new RowChecksum();
         MutationChecksum mutationVisitor = new MutationChecksum();
 
@@ -538,7 +538,16 @@ public final class RegistrationListBenchmark {
             int population,
             int rowCapacity) {
 
-        RegistrationList list = emptyList(kind, population, rowCapacity);
+        return filledUnique(kind, population, rowCapacity, rowCapacity);
+    }
+
+    private static RegistrationList filledUnique(
+            RankingIndexKind kind,
+            int population,
+            int rowCapacity,
+            int rankingCapacity) {
+
+        RegistrationList list = emptyList(kind, population, rowCapacity, rankingCapacity);
         list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
@@ -559,10 +568,20 @@ public final class RegistrationListBenchmark {
             RankingIndexKind kind,
             int population,
             int rowCapacity) {
+
+        return emptyList(kind, population, rowCapacity, rowCapacity);
+    }
+
+    private static RegistrationList emptyList(
+            RankingIndexKind kind,
+            int population,
+            int rowCapacity,
+            int rankingCapacity) {
+
         int indexCapacity = nextPowerOfTwo(Math.max(2, population * 2));
         int mutationCapacity = nextPowerOfTwo(Math.max(8, population * 2));
 
-        RankingIndex ranking = kind.create(rowCapacity);
+        RankingIndex ranking = kind.create(rankingCapacity);
         return new RegistrationList(
                 rowCapacity,
                 indexCapacity,
