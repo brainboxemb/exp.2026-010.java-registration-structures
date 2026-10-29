@@ -30,6 +30,8 @@ public class RegistrationListJmhBenchmark {
     private static final long BASE_TIME = 1_700_000_000_000L;
     private static final long BASE_START =
             emb.experiment.active.StageTiming.compactUtc(Instant.ofEpochMilli(BASE_TIME));
+    private static final long CHANGED_START =
+            emb.experiment.active.StageTiming.compactUtc(Instant.ofEpochMilli(BASE_TIME + 500L));
 
     private static final class RowChecksum implements RegistrationList.Visitor {
         long value;
@@ -184,7 +186,7 @@ public class RegistrationListJmhBenchmark {
     public long startChangeAndSyncRoundTrip(ListState state) {
         int id = registrationId(450);
 
-        if (!state.list.setStart(id, stageStart(500L)))
+        if (!state.list.setStart(id, CHANGED_START))
             throw new IllegalStateException("start should change");
 
         state.rows.reset();
@@ -205,7 +207,7 @@ public class RegistrationListJmhBenchmark {
     public long startChangeMultipleRoundTrip(MultipleRowsState state) {
         int id = registrationId(400);
 
-        if (!state.list.setStart(id, stageStart(500L)))
+        if (!state.list.setStart(id, CHANGED_START))
             throw new IllegalStateException("start should change");
 
         state.rows.reset();
