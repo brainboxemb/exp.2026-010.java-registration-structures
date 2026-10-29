@@ -273,6 +273,8 @@ public final class RegistrationListBenchmark {
 
     private static Measurement mutationBatchListOnly(int population, int batch, Meter meter) {
         RegistrationList list = filledUniqueListOnly(population);
+        for (int i = 0; i < batch; i++)
+            list.setStart(registrationId(i), BASE_TIME + 1_000L + i);
         MutationChecksum visitor = new MutationChecksum();
         long after = list.latestMutationRevision() - batch;
 
@@ -365,10 +367,12 @@ public final class RegistrationListBenchmark {
         long before = System.nanoTime();
 
         RegistrationList list = emptyList(kind, population);
+        list.beginInitialLoad();
         for (int i = 0; i < population; i++)
             list.setStart(registrationId(i), BASE_TIME);
         for (int i = 0; i < population; i++)
             list.add(i + 1L, registrationId(i), passage(i));
+        list.finishInitialLoad();
 
         long checksum = list.size() * 31L
                 + list.uniqueValidRegistrationCount() * 17L
@@ -482,6 +486,8 @@ public final class RegistrationListBenchmark {
             Meter meter) {
 
         RegistrationList list = filledUnique(kind, population);
+        for (int i = 0; i < batch; i++)
+            list.setStart(registrationId(i), BASE_TIME + 1_000L + i);
         MutationChecksum visitor = new MutationChecksum();
 
         long after = list.latestMutationRevision() - batch;
@@ -499,6 +505,7 @@ public final class RegistrationListBenchmark {
 
     private static RegistrationList filledUniqueListOnly(int population) {
         RegistrationList list = emptyListOnly(population);
+        list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
             list.setStart(registrationId(i), BASE_TIME);
@@ -506,6 +513,7 @@ public final class RegistrationListBenchmark {
         for (int i = 0; i < population; i++)
             list.add(i + 1L, registrationId(i), passage(i));
 
+        list.finishInitialLoad();
         return list;
     }
 
@@ -531,6 +539,7 @@ public final class RegistrationListBenchmark {
             int rowCapacity) {
 
         RegistrationList list = emptyList(kind, population, rowCapacity);
+        list.beginInitialLoad();
 
         for (int i = 0; i < population; i++)
             list.setStart(registrationId(i), BASE_TIME);
@@ -538,6 +547,7 @@ public final class RegistrationListBenchmark {
         for (int i = 0; i < population; i++)
             list.add(i + 1L, registrationId(i), passage(i));
 
+        list.finishInitialLoad();
         return list;
     }
 
