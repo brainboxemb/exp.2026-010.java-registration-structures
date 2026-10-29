@@ -47,6 +47,34 @@ public final class RegistrationListBenchmark {
         }
     }
 
+
+    /**
+     * Benchmark-only ranking stub. It deliberately does no real ranking work,
+     * so timings labelled LIST_ONLY isolate RegistrationList/Index/ring costs.
+     */
+    private static final class ListOnlyRanking implements RankingIndex {
+        private int size;
+
+        @Override public void add(long elapsedMillis) { size++; }
+
+        @Override public boolean remove(long elapsedMillis) {
+            if (size == 0) return false;
+            size--;
+            return true;
+        }
+
+        @Override public void prepare() { }
+
+        @Override public int rankOf(long elapsedMillis) {
+            return size == 0 ? 0 : 1;
+        }
+
+        @Override public int size() { return size; }
+        @Override public int distinctSize() { return size; }
+        @Override public int capacity() { return -1; }
+        @Override public int growthEvents() { return -1; }
+    }
+
     private static final class Measurement {
         final long nanos;
         final long bytes;
@@ -108,32 +136,222 @@ public final class RegistrationListBenchmark {
                 "scenario,ranking,population,operations,median_ns_per_operation,"
                 + "median_allocated_bytes_per_operation,checksum");
 
+        for (int population : populations) {
+            report("fast_revoke", "LIST_ONLY", population, population,
+                    () -> fastRevokeListOnly(population, meter));
+
+            int duplicateIds = Math.max(1, population / 2);
+            report("multi_registration_revoke_scan", "LIST_ONLY", population, duplicateIds,
+                    () -> multiRegistrationRevokeListOnly(population, meter));
+
+            int startChanges = Math.min(population, 256);
+            report("start_change_scan", "LIST_ONLY", population, startChanges,
+                    () -> startChangesListOnly(population, startChanges, meter));
+
+            report("snapshot_rows", "LIST_ONLY", population, population,
+                    () -> snapshotListOnly(population, meter));
+
+            int batch = Math.min(population, 64);
+            report("mutation_batch", "LIST_ONLY", population, batch,
+                    () -> mutationBatchListOnly(population, batch, meter));
+        }
+
         for (RankingIndexKind kind : RankingIndexKind.values()) {
             for (int population : populations) {
-                report("initial_fill", kind, population, population,
+                report("initial_fill", kind.name(), population, population,
                         () -> initialFill(kind, population, meter));
 
-                report("fast_revoke", kind, population, population,
+                report("fast_revoke", kind.name(), population, population,
                         () -> fastRevoke(kind, population, meter));
 
                 int duplicateIds = Math.max(1, population / 2);
-                report("multi_registration_revoke_scan", kind, population, duplicateIds,
+                report("multi_registration_revoke_scan", kind.name(), population, duplicateIds,
                         () -> multiRegistrationRevoke(kind, population, meter));
 
                 int startChanges = Math.min(population, 256);
-                report("start_change_scan", kind, population, startChanges,
+                report("start_change_scan", kind.name(), population, startChanges,
                         () -> startChanges(kind, population, startChanges, meter));
 
-                report("snapshot_rows", kind, population, population,
+                report("snapshot_rows", kind.name(), population, population,
                         () -> snapshot(kind, population, meter));
 
                 int batch = Math.min(population, 64);
-                report("mutation_batch", kind, population, batch,
+                report("mutation_batch", kind.name(), population, batch,
                         () -> mutationBatch(kind, population, batch, meter));
+
+                if (population == 500) {
+                    report("mixed_race_1024", kind.name(), population, 1024,
+                            () -> mixedRace(kind, meter));
+                }
             }
         }
 
         System.out.println("# blackhole=" + blackhole);
+    }
+
+
+    private static Measurement fastRevokeListOnly(int population, Meter meter) {
+        RegistrationList list = filledUniqueListOnly(population);
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        for (int i = 0; i < population; i++) {
+            if (!list.revoke(population + i + 1L, registrationId(i), passage(i)))
+                throw new IllegalStateException("expected direct REV for id " + i);
+        }
+
+        return measured(
+                before,
+                beforeBytes,
+                list.fastRevokeCount() * 17L + list.uniqueValidRegistrationCount(),
+                meter);
+    }
+
+    private static Measurement multiRegistrationRevokeListOnly(int population, Meter meter) {
+        int ids = Math.max(1, population / 2);
+        RegistrationList list = emptyListOnly(ids * 2);
+
+        for (int i = 0; i < ids; i++)
+            list.setStart(registrationId(i), BASE_TIME);
+
+        long sequence = 0;
+        for (int i = 0; i < ids; i++)
+            list.add(++sequence, registrationId(i), passage(i));
+        for (int i = 0; i < ids; i++)
+            list.add(++sequence, registrationId(i), passage(i) + 1_000_000L);
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        for (int i = 0; i < ids; i++) {
+            if (!list.revoke(++sequence, registrationId(i), passage(i)))
+                throw new IllegalStateException("expected scanned REV for id " + i);
+        }
+
+        return measured(
+                before,
+                beforeBytes,
+                list.scannedRevokeCount() * 17L + list.uniqueValidRegistrationCount(),
+                meter);
+    }
+
+    private static Measurement startChangesListOnly(
+            int population,
+            int changes,
+            Meter meter) {
+
+        RegistrationList list = filledUniqueListOnly(population);
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        for (int i = 0; i < changes; i++) {
+            if (!list.setStart(registrationId(i), BASE_TIME + 1_000L))
+                throw new IllegalStateException("expected changed start");
+        }
+
+        return measured(
+                before,
+                beforeBytes,
+                list.latestMutationRevision() * 31L + list.uniqueValidRegistrationCount(),
+                meter);
+    }
+
+    private static Measurement snapshotListOnly(int population, Meter meter) {
+        RegistrationList list = filledUniqueListOnly(population);
+        RowChecksum visitor = new RowChecksum();
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        long revision = list.visitSnapshot(visitor);
+        return measured(before, beforeBytes, visitor.value + revision * 31L, meter);
+    }
+
+    private static Measurement mutationBatchListOnly(int population, int batch, Meter meter) {
+        RegistrationList list = filledUniqueListOnly(population);
+        MutationChecksum visitor = new MutationChecksum();
+        long after = list.latestMutationRevision() - batch;
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        int visited = list.visitMutationsAfter(after, batch, visitor);
+        if (visited != batch)
+            throw new IllegalStateException("expected mutation batch of " + batch);
+
+        return measured(before, beforeBytes, visitor.value + visited * 31L, meter);
+    }
+
+    /**
+     * Deterministic mixed workload around the normal 500-row population.
+     *
+     * Each 16-operation block performs:
+     * 4 duplicate ADDs, 4 matching REVs, 4 start changes,
+     * 3 mutation-sync batches and 1 full snapshot.
+     *
+     * Valid-registration count stays roughly stable while retained rows grow
+     * from 500 to 756, intentionally crossing the 512 row-capacity boundary.
+     */
+    private static Measurement mixedRace(RankingIndexKind kind, Meter meter) {
+        RegistrationList list = filledUnique(kind, 500);
+        RowChecksum rows = new RowChecksum();
+        MutationChecksum mutationVisitor = new MutationChecksum();
+
+        long sequence = list.lastLogSequence();
+        long displayCursor = list.latestMutationRevision();
+        long checksum = 0;
+
+        long beforeBytes = meter.allocatedBytes();
+        long before = System.nanoTime();
+
+        for (int block = 0; block < 64; block++) {
+            int baseId = (block * 7) % 496;
+            long[] duplicatePassages = new long[4];
+
+            for (int i = 0; i < 4; i++) {
+                int idIndex = baseId + i;
+                long duplicatePassage =
+                        passage(idIndex) + 1_000_000L + block * 10_000L + i;
+                duplicatePassages[i] = duplicatePassage;
+                list.add(++sequence, registrationId(idIndex), duplicatePassage);
+            }
+
+            for (int i = 0; i < 4; i++) {
+                int idIndex = baseId + i;
+                if (!list.revoke(++sequence, registrationId(idIndex), duplicatePassages[i]))
+                    throw new IllegalStateException("mixed workload REV failed");
+            }
+
+            for (int i = 0; i < 4; i++) {
+                int idIndex = baseId + i;
+                long start = BASE_TIME + (block + 1L) * 10L + i;
+                if (!list.setStart(registrationId(idIndex), start))
+                    throw new IllegalStateException("mixed workload start did not change");
+            }
+
+            for (int sync = 0; sync < 3; sync++) {
+                long latest = list.latestMutationRevision();
+                if (displayCursor < latest) {
+                    int visited = list.visitMutationsAfter(displayCursor, 8, mutationVisitor);
+                    displayCursor += visited;
+                    checksum += visited;
+                }
+            }
+
+            displayCursor = list.visitSnapshot(rows);
+            checksum += displayCursor;
+        }
+
+        checksum += rows.value
+                + mutationVisitor.value
+                + list.size() * 31L
+                + list.uniqueValidRegistrationCount() * 17L
+                + list.fastRevokeCount()
+                + list.scannedRevokeCount();
+
+        return measured(before, beforeBytes, checksum, meter);
     }
 
     private static Measurement initialFill(RankingIndexKind kind, int population, Meter meter) {
@@ -272,6 +490,31 @@ public final class RegistrationListBenchmark {
         return measured(before, beforeBytes, visitor.value + visited * 31L, meter);
     }
 
+
+    private static RegistrationList filledUniqueListOnly(int population) {
+        RegistrationList list = emptyListOnly(population);
+
+        for (int i = 0; i < population; i++)
+            list.setStart(registrationId(i), BASE_TIME);
+
+        for (int i = 0; i < population; i++)
+            list.add(i + 1L, registrationId(i), passage(i));
+
+        return list;
+    }
+
+    private static RegistrationList emptyListOnly(int population) {
+        int rowCapacity = normalCapacity(population);
+        int indexCapacity = nextPowerOfTwo(Math.max(2, population * 2));
+        int mutationCapacity = nextPowerOfTwo(Math.max(8, population * 2));
+
+        return new RegistrationList(
+                rowCapacity,
+                indexCapacity,
+                mutationCapacity,
+                new ListOnlyRanking());
+    }
+
     private static RegistrationList filledUnique(RankingIndexKind kind, int population) {
         RegistrationList list = emptyList(kind, population);
 
@@ -337,7 +580,7 @@ public final class RegistrationListBenchmark {
 
     private static void report(
             String scenario,
-            RankingIndexKind kind,
+            String rankingName,
             int population,
             int operations,
             Work work) {
@@ -374,7 +617,7 @@ public final class RegistrationListBenchmark {
                 Locale.ROOT,
                 "%s,%s,%d,%d,%.1f,%s,%d%n",
                 scenario,
-                kind,
+                rankingName,
                 population,
                 operations,
                 nanosPerOperation,
