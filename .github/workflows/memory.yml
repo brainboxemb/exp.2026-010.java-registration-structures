@@ -6,6 +6,9 @@ on:
     branches:
       - experiment/ranking-structures-clean
     paths:
+      - src/main/**
+      - src/jmh/**
+      - pom.xml
       - .github/workflows/memory.yml
 
 jobs:
