@@ -30,6 +30,9 @@ public final class RegistrationList {
 
     private static final byte VALID = 1;
 
+    private static final int START_STATE_CHANGED = 1;
+    private static final int START_RANKING_CHANGED = 2;
+
     private long[] sequences;
     private int[] registrationIds;
     private long[] passageTimes;
@@ -96,15 +99,21 @@ public final class RegistrationList {
     /**
      * Append one committed ADD record. Returns the stable row index.
      */
-    public int add(long logSequence, int registrationId, long passageTime) {
+    public int add(
+            long logSequence,
+            int registrationId,
+            long passageTime,
+            long startTime) {
+
         requireNextLogSequence(logSequence);
         if (passageTime < 0)
             throw new IllegalArgumentException("passageTime must be nonnegative");
+        if (startTime != NO_TIME && startTime < 0L)
+            throw new IllegalArgumentException("compact stage start must be nonnegative");
 
         ensureRowCapacity();
 
         int slot = index.ensureSlot(registrationId);
-        long startTime = index.startTime(slot);
         long elapsedTime = elapsed(startTime, passageTime);
 
         int row = size++;
@@ -166,7 +175,11 @@ public final class RegistrationList {
     }
 
     /**
-     * Store one current start time. Returns false when it was unchanged.
+     * Applies one already-normalized current stage start to retained rows.
+     *
+     * RaceData remains authoritative for the current start value. When this
+     * RegistrationId has no retained ADD row, RegistrationList has nothing to
+     * change and returns false.
      */
     public boolean setStart(int registrationId, long startTime) {
         if (startTime == NO_TIME)
@@ -174,35 +187,34 @@ public final class RegistrationList {
         if (startTime < 0L)
             throw new IllegalArgumentException("compact stage start must be nonnegative");
 
-        int slot = index.ensureSlot(registrationId);
-        if (!index.setStartTime(slot, startTime))
+        int slot = index.findExistingSlot(registrationId);
+        if (slot < 0 || index.retainedCount(slot) == 0)
             return false;
 
-        boolean rankingChanged = recalculateRowsForStart(slot, registrationId, startTime);
-        if (!initialLoading && index.retainedCount(slot) > 0) {
-            mutations.append(
-                    RegistrationMutations.Kind.START_CHANGED,
-                    registrationId,
-                    rankingChanged ? RegistrationMutations.RANKING_CHANGED : 0);
-        }
+        int change = recalculateRowsForStart(slot, registrationId, startTime);
+        if ((change & START_STATE_CHANGED) == 0)
+            return false;
+
+        appendStartMutation(registrationId, change);
         return true;
     }
 
     /**
-     * Delete one current start time. Returns false when none was known.
+     * Clears the cached stage start on retained rows.
+     *
+     * RaceData owns whether a start actually existed globally; this method
+     * reports only whether retained RegistrationList row state changed.
      */
     public boolean deleteStart(int registrationId) {
         int slot = index.findExistingSlot(registrationId);
-        if (slot < 0 || !index.deleteStartTime(slot))
+        if (slot < 0 || index.retainedCount(slot) == 0)
             return false;
 
-        boolean rankingChanged = recalculateRowsForStart(slot, registrationId, NO_TIME);
-        if (!initialLoading && index.retainedCount(slot) > 0) {
-            mutations.append(
-                    RegistrationMutations.Kind.START_CHANGED,
-                    registrationId,
-                    rankingChanged ? RegistrationMutations.RANKING_CHANGED : 0);
-        }
+        int change = recalculateRowsForStart(slot, registrationId, NO_TIME);
+        if ((change & START_STATE_CHANGED) == 0)
+            return false;
+
+        appendStartMutation(registrationId, change);
         return true;
     }
 
@@ -318,11 +330,6 @@ public final class RegistrationList {
         return slot < 0 ? 0 : index.retainedCount(slot);
     }
 
-    public long startTime(int registrationId) {
-        int slot = index.findExistingSlot(registrationId);
-        return slot < 0 ? NO_TIME : index.startTime(slot);
-    }
-
     public long latestMutationRevision() {
         return mutations.latestRevision();
     }
@@ -384,54 +391,66 @@ public final class RegistrationList {
                 rank);
     }
 
-    private boolean recalculateRowsForStart(
+    private int recalculateRowsForStart(
             int lookupSlot,
             int registrationId,
             long startTime) {
 
         int retained = index.retainedCount(lookupSlot);
         if (retained == 0)
-            return false;
+            return 0;
 
         if (retained == 1)
             return updateRowStart(index.onlyRetainedRow(lookupSlot), startTime);
 
-        boolean rankingChanged = false;
-
+        int change = 0;
         for (int row = 0; row < size; row++) {
             if (registrationIds[row] == registrationId)
-                rankingChanged |= updateRowStart(row, startTime);
+                change |= updateRowStart(row, startTime);
         }
-
-        return rankingChanged;
+        return change;
     }
 
-    private boolean updateRowStart(int row, long startTime) {
+    private int updateRowStart(int row, long startTime) {
+        long oldStart = startTimes[row];
+        if (oldStart == startTime)
+            return 0;
+
         long oldElapsed = elapsedTimes[row];
         long newElapsed = elapsed(startTime, passageTimes[row]);
 
-        // Start time belongs to the row view even when elapsed remains unknown.
         startTimes[row] = startTime;
 
+        int change = START_STATE_CHANGED;
         if (oldElapsed == newElapsed)
-            return false;
-
-        boolean rankingChanged = false;
+            return change;
 
         if (isValid(row) && oldElapsed != NO_TIME) {
             if (!ranking.remove(oldElapsed))
                 throw new IllegalStateException("RankingIndex lost elapsed value " + oldElapsed);
-            rankingChanged = true;
+            change |= START_RANKING_CHANGED;
         }
 
         elapsedTimes[row] = newElapsed;
 
         if (isValid(row) && newElapsed != NO_TIME) {
             ranking.add(newElapsed);
-            rankingChanged = true;
+            change |= START_RANKING_CHANGED;
         }
 
-        return rankingChanged;
+        return change;
+    }
+
+    private void appendStartMutation(int registrationId, int change) {
+        if (initialLoading)
+            return;
+
+        mutations.append(
+                RegistrationMutations.Kind.START_CHANGED,
+                registrationId,
+                (change & START_RANKING_CHANGED) != 0
+                        ? RegistrationMutations.RANKING_CHANGED
+                        : 0);
     }
 
     private void invalidateRow(int lookupSlot, int row) {
