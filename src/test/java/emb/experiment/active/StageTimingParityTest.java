@@ -101,6 +101,50 @@ final class StageTimingParityTest {
     }
 
     @Test
+    void datedCompactElapsedMatchesJavaTimeAcrossLeapCenturyCases() {
+        int[] years = {1970, 1999, 2000, 2001, 2024, 2100, 2400};
+        int[] months = {1, 2, 3, 6, 12};
+
+        for (int year : years) {
+            for (int month : months) {
+                LocalDate first = LocalDate.of(year, month, 1);
+                LocalDate last = first.withDayOfMonth(first.lengthOfMonth());
+
+                for (LocalDate date : new LocalDate[] {first, last}) {
+                    LocalDateTime start = LocalDateTime.of(
+                            date,
+                            LocalTime.of(12, 34, 56, 780_000_000));
+                    long compact = StageTiming.compactUtc(
+                            start,
+                            ZoneOffset.UTC);
+                    long startEpoch = start.toInstant(ZoneOffset.UTC).toEpochMilli();
+                    long passage = startEpoch + 12_340L;
+
+                    assertEquals(
+                            12_340L,
+                            StageTiming.elapsedMillisOrMissing(compact, passage),
+                            date.toString());
+                }
+            }
+        }
+    }
+
+    @Test
+    void invalidDatedCompactValuesAreRejectedInElapsedPath() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> StageTiming.elapsedMillisOrMissing(
+                        2026_02_30_12_00_00_00L,
+                        Instant.parse("2026-03-01T12:00:00Z").toEpochMilli()));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> StageTiming.elapsedMillisOrMissing(
+                        2026_13_01_12_00_00_00L,
+                        Instant.parse("2026-03-01T12:00:00Z").toEpochMilli()));
+    }
+
+    @Test
     void everyMinutePreservesKnownElapsedBelowTwelveHoursAcrossRollover() {
         long[] elapsedValues = {
                 0L,
