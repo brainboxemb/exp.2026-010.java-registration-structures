@@ -43,16 +43,26 @@ None of these structures replaces the LogBook.
 The preferred representation is a custom structure-of-arrays list rather than one Java
 object per row.
 
-Conceptually:
+Conceptually the **row arrays** are:
 
 ```text
 long[] sequence
 int[]  registrationId
 long[] passageTime
-long[] startTime
 long[] elapsedTime
 byte[] flags
 ```
+
+The current start time is owned by ActiveRegistrations too, but is stored **once per
+registrationId in RegistrationLookup**, not duplicated in every row.
+
+Logically a visitor can still see:
+
+```text
+sequence + registrationId + passageTime + current startTime + elapsedTime + valid
+```
+
+Physical storage and the logical row view do not have to be identical.
 
 The same array index identifies one retained registration across all arrays.
 
@@ -62,9 +72,10 @@ For example row 217 is:
 sequence[217]
 registrationId[217]
 passageTime[217]
-startTime[217]
 elapsedTime[217]
 flags[217]
+
+startTime = RegistrationLookup.startTimeFor(registrationId[217])
 ```
 
 Suggested flags:
@@ -164,10 +175,13 @@ int[]  keys
 int[]  retainedCount
 int[]  validCount
 int[]  onlyValidRow
-byte[] occupied
+long[] startTime
 ```
 
 No `Map<Integer,...>`, boxed keys or entry objects are required.
+
+Packed registrationId zero is not a valid registration id, so `keys[slot] == 0` can be
+used as the EMPTY marker. No separate `occupied[]` array is required.
 
 Because entries are not deleted while a WP is active, the table does not need tombstones.
 A registrationId that becomes invalid remains a known key with `validCount == 0`.
@@ -177,8 +191,12 @@ comfortably below 0.5 and avoids rehashing in the normal case.
 
 The lookup directly provides:
 
-- `uniqueRetainedRegistrationCount = occupied entry count`;
-- `uniqueValidRegistrationCount = entries with validCount > 0`.
+- `uniqueRetainedRegistrationCount = non-empty key count`;
+- `uniqueValidRegistrationCount = entries with validCount > 0`;
+- current start time for each registrationId.
+
+Maintain both unique counts incrementally. In particular, update the valid-id count only on
+the `validCount 0 -> 1` and `1 -> 0` transitions; do not scan the table to answer it.
 
 Maintain the second count incrementally on the 0->1 and 1->0 transitions; do not rescan the
 table just to answer the count.
@@ -224,19 +242,23 @@ Do not add another per-id list of row positions merely to optimize this rare ope
 Instead:
 
 ```text
+RegistrationLookup.startTime[id] = new start
+
 scan ActiveRegistrations
     for rows with registrationId == changed id:
         if valid + old elapsed:
             RankingIndex.remove(old elapsed)
 
-        update cached start
-        recalculate cached elapsed
+        recalculate cached elapsed from passage + new start
 
         if valid + new elapsed:
             RankingIndex.add(new elapsed)
 ```
 
 At roughly 500 rows this scan is cheap, allocation-free and simple.
+
+Because start time is stored once in RegistrationLookup, this scan changes only cached elapsed
+values in the affected rows; it does not rewrite a duplicated start value into every row.
 
 The benchmark should include this operation before deciding that another index is justified.
 
@@ -247,16 +269,22 @@ per change.
 
 Use a primitive circular buffer.
 
-One possible representation:
+A compact representation can be:
 
 ```text
 byte[] kind
-int[]  row
-int[]  registrationId
+int[]  subject
 byte[] flags
 
 long latestRevision
 ```
+
+`subject` is interpreted by `kind`:
+
+- ROW_ADDED / ROW_REVOKED: stable ActiveRegistrations row index;
+- START_CHANGED: packed registrationId.
+
+This avoids keeping both `row[]` and `registrationId[]` in every mutation slot.
 
 The revision number itself does not need an array when slot position can be derived from the
 monotonic revision:
@@ -276,11 +304,17 @@ ROW_REVOKED
 START_CHANGED
 ```
 
-The exact payload can remain minimal:
+The mutation is intentionally a **dirty/current-state marker**, not a second historical event
+record. The LogBook already contains the history.
 
-- ADD / REV can identify the stable row index;
-- START_CHANGED can identify the registrationId;
+- ADD / REV identify the stable row index;
+- START_CHANGED identifies the registrationId;
 - flags can indicate that rank-dependent presentation should be refreshed.
+
+When a consumer reads the mutation, it reads the current row/start data from
+ActiveRegistrations. If ADD and REV both happened before the consumer caught up, receiving the
+current invalid row is sufficient to converge to the correct current state; the display does
+not need to reconstruct every intermediate visual state.
 
 The mutation list is a **change/invalidation journal**, not a second copy of registration data.
 When a consumer visits a mutation it can read the current row data from ActiveRegistrations.
