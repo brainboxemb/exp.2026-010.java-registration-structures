@@ -1,6 +1,11 @@
 # Experiment 010 — Java ranking structures
 
-This repository answers one concrete question:
+**Start with [FLOW.md](FLOW.md).** It describes what is stored in the LogBook,
+what belongs in ActiveRegistrations, what belongs in the ranking index, and the
+exact ADD / REV / start-time / visitor flow. The code should be readable from
+that document without reverse-engineering the architecture.
+
+Once that flow is clear, this repository answers one concrete implementation question:
 
 > **Which data structure is a good fit for maintaining competition ranking for roughly 500 timing registrations in Java?**
 
