@@ -10,7 +10,7 @@ import java.util.Map;
  * (time-only starts, midnight rollover, DST) remains owned by production StageTiming.
  * Not thread safe: mutations are serialized, like the Node task lane.
  */
-public final class RegistrationProjection {
+public final class RegistrationProjection implements ProjectionModel {
     public enum RankingMode { REBUILD, SORTED_ARRAY }
 
     public interface RowVisitor {
