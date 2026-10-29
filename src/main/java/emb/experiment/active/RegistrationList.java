@@ -10,8 +10,8 @@ import java.util.Arrays;
  * Rows are append-only and stored in primitive parallel arrays. REV only clears
  * VALID; stable row positions are therefore safe mutation/snapshot subjects.
  *
- * Times in this experiment are normalized epoch milliseconds. Production
- * StageTiming conversion remains a separate concern.
+ * Passage times are absolute UTC epoch milliseconds. Cached start times use
+ * the production compact UTC representation (yyyyMMddHHmmsscc or HHmmsscc).
  */
 public final class RegistrationList {
     public interface Visitor {
@@ -171,6 +171,8 @@ public final class RegistrationList {
     public boolean setStart(int registrationId, long startTime) {
         if (startTime == NO_TIME)
             throw new IllegalArgumentException("NO_TIME is reserved");
+        if (startTime < 0L)
+            throw new IllegalArgumentException("compact stage start must be nonnegative");
 
         int slot = index.ensureSlot(registrationId);
         if (!index.setStartTime(slot, startTime))
@@ -457,9 +459,10 @@ public final class RegistrationList {
     }
 
     private static long elapsed(long startTime, long passageTime) {
-        if (startTime == NO_TIME || passageTime < startTime)
+        if (startTime == NO_TIME)
             return NO_TIME;
-        return passageTime - startTime;
+
+        return StageTiming.elapsedMillisOrMissing(startTime, passageTime);
     }
 
     private void requireReadable() {
