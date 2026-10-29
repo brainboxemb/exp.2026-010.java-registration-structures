@@ -32,6 +32,10 @@ RegistrationMutations
 Historical LogBook replay is silent. The first display snapshot has mutation revision 0.
 Only subsequent live changes enter RegistrationMutations.
 
+RegistrationList passage times are absolute UTC epoch milliseconds. Stage starts use the
+production compact UTC representation (dated or time-only), and elapsed milliseconds are
+cached using production StageTiming rules.
+
 Rank is calculated at read time and is never stored in registration rows.
 
 ## Why SortedArrayRanking
@@ -158,8 +162,9 @@ yet to change production.
 Remaining gates:
 
 1. run the selected structures on the Pi Zero;
-2. validate compact/time-only StageTiming and midnight/DST semantics against production;
-3. map real LogBook ADD/REV/location filtering and OPEN replay semantics;
+2. keep the new compact/time-only StageTiming parity tests green;
+3. map the documented LogBook ADD/REV/location filtering and OPEN replay contract into the
+   production adapter;
 4. verify the actual display protocol/snapshot payload around the mutation cursor;
 5. then implement the production refactor with regression fixtures.
 
