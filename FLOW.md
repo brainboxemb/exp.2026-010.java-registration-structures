@@ -486,10 +486,13 @@ None of these structures replaces the LogBook.
 
 The flow above is fixed.
 
-Experiment 010 varies **only the implementation of RankingIndex**.
+Experiment 010 keeps the RegistrationList / RegistrationIndex / RegistrationMutations design
+fixed and varies the **RankingIndex implementation**.
 
-A future integration test can drive the complete flow, but timing comparisons should isolate the
-ranking implementation so every candidate receives exactly the same mutations.
+The repository also measures the fixed list/index/mutation structures themselves: direct REV,
+exceptional multi-registration scans, start-time scans, snapshot rows and mutation batches.
+This lets us verify that the surrounding memory/search design stays cheap while every ranking
+candidate receives the same logical mutations.
 
 The initial interface is therefore intentionally small:
 
