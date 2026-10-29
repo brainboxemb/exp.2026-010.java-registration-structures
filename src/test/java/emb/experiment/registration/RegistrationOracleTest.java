@@ -123,7 +123,7 @@ final class RegistrationOracleTest {
         }
     }
 
-    private static void assertEquivalent(Oracle oracle, RegistrationProjection projection,
+    private static void assertEquivalent(Oracle oracle, ProjectionModel projection,
                                           long after, int limit) {
         List<String> actual = new ArrayList<String>();
         int returned = projection.visitAfter(after, limit, (sequence, id, passage, elapsed, valid, rank) ->
@@ -139,8 +139,8 @@ final class RegistrationOracleTest {
     }
 
     @Test void seededOracleWithStageStartChangesRevokesAndDisplayPaging() {
-        for (RegistrationProjection.RankingMode mode : RegistrationProjection.RankingMode.values()) {
-            RegistrationProjection projection = new RegistrationProjection(mode, 16);
+        for (ModelKind mode : ModelKind.values()) {
+            ProjectionModel projection = mode.create(16);
             Oracle oracle = new Oracle();
             Random random = new Random(0x010010L);
             long sequence = 0L;
@@ -178,8 +178,8 @@ final class RegistrationOracleTest {
     }
 
     @Test void exactCapacityGrowthAndFiveThousandEntries() {
-        for (RegistrationProjection.RankingMode mode : RegistrationProjection.RankingMode.values()) {
-            RegistrationProjection projection = new RegistrationProjection(mode, 512);
+        for (ModelKind mode : ModelKind.values()) {
+            ProjectionModel projection = mode.create(512);
             Oracle oracle = new Oracle();
             for (int id = 0; id < 20; id++) {
                 long start = 1000L + id;
@@ -195,7 +195,8 @@ final class RegistrationOracleTest {
                     assertEquals(512, projection.rowCapacity());
                     assertEquals(0, projection.rowGrowthEvents());
                 } else if (i == 513) {
-                    assertEquals(1024, projection.rowCapacity());
+                    assertEquals(mode == ModelKind.PRODUCTION_EAGER ? 768 : 1024,
+                            projection.rowCapacity());
                     assertEquals(1, projection.rowGrowthEvents());
                 }
             }
@@ -207,8 +208,8 @@ final class RegistrationOracleTest {
     }
 
     @Test void repeatedIdenticalAddRevTargetsNewestValidPassage() {
-        for (RegistrationProjection.RankingMode mode : RegistrationProjection.RankingMode.values()) {
-            RegistrationProjection projection = new RegistrationProjection(mode, 1);
+        for (ModelKind mode : ModelKind.values()) {
+            ProjectionModel projection = mode.create(1);
             Oracle oracle = new Oracle();
             projection.setStart(8, 100);
             oracle.setStart(8, 100);
