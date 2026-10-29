@@ -77,7 +77,7 @@ selection also requires repeated/forked measurements and Pi Zero qualification.
 Start here:
 
 ```text
-Ranking.java
+RankingIndex.java
 RankingTest.java
 RebuildSortRanking.java
 SortedArrayRanking.java
