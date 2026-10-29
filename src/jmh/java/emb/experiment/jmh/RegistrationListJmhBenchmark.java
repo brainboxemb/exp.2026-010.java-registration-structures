@@ -17,6 +17,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -27,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 @Threads(1)
 public class RegistrationListJmhBenchmark {
     private static final long BASE_TIME = 1_700_000_000_000L;
+    private static final long BASE_START =
+            emb.experiment.active.StageTiming.compactUtc(Instant.ofEpochMilli(BASE_TIME));
 
     private static final class RowChecksum implements RegistrationList.Visitor {
         long value;
@@ -94,14 +97,14 @@ public class RegistrationListJmhBenchmark {
 
             list.beginInitialLoad();
             for (int i = 0; i < 500; i++)
-                list.setStart(registrationId(i), BASE_TIME);
+                list.setStart(registrationId(i), BASE_START);
             for (int i = 0; i < 500; i++)
                 list.add(i + 1L, registrationId(i), passage(i));
             list.finishInitialLoad();
 
             // Build a stable 64-entry live mutation window for mutationBatch64.
             for (int i = 0; i < 64; i++)
-                list.setStart(registrationId(i), BASE_TIME + 100L + i);
+                list.setStart(registrationId(i), stageStart(100L + i * 10L));
 
             rows = new RowChecksum();
             mutations = new MutationChecksum();
@@ -144,14 +147,14 @@ public class RegistrationListJmhBenchmark {
     public long startChangeAndSyncRoundTrip(ListState state) {
         int id = registrationId(450);
 
-        if (!state.list.setStart(id, BASE_TIME + 500L))
+        if (!state.list.setStart(id, stageStart(500L)))
             throw new IllegalStateException("start should change");
 
         state.rows.reset();
         int changedVisited = state.list.visitRegistration(id, state.rows);
         long checksum = state.rows.value + changedVisited;
 
-        if (!state.list.setStart(id, BASE_TIME))
+        if (!state.list.setStart(id, BASE_START))
             throw new IllegalStateException("start should restore");
 
         state.rows.reset();
@@ -159,6 +162,11 @@ public class RegistrationListJmhBenchmark {
         checksum += state.rows.value + restoredVisited;
 
         return checksum;
+    }
+
+    private static long stageStart(long offsetMillis) {
+        return emb.experiment.active.StageTiming.compactUtc(
+                Instant.ofEpochMilli(BASE_TIME + offsetMillis));
     }
 
     private static int registrationId(int index) {
