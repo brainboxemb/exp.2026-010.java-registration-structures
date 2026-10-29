@@ -3,6 +3,7 @@ package emb.experiment.active;
 import emb.experiment.ranking.RankingIndexKind;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -200,7 +201,7 @@ final class RegistrationListOracleTest {
             // retained/valid registrations or display mutations.
             for (int i = 0; i < 20; i++) {
                 int id = id(i);
-                long start = BASE + random.nextInt(2000);
+                long start = compactStart(BASE + random.nextInt(2000));
                 assertEquals(oracle.setStart(id, start), actual.setStart(id, start), kind.name());
             }
             assertEquivalent(kind, actual, oracle);
@@ -235,7 +236,7 @@ final class RegistrationListOracleTest {
                             kind + " REV operation " + operation);
                 } else if (choice < 90) {
                     int id = id(random.nextInt(80));
-                    long start = BASE + random.nextInt(5000);
+                    long start = compactStart(BASE + random.nextInt(5000));
                     assertEquals(
                             oracle.setStart(id, start),
                             actual.setStart(id, start),
@@ -308,9 +309,13 @@ final class RegistrationListOracleTest {
     }
 
     private static long elapsed(long start, long passage) {
-        if (start == RegistrationList.NO_TIME || passage < start)
+        if (start == RegistrationList.NO_TIME)
             return RegistrationList.NO_TIME;
-        return passage - start;
+        return StageTiming.elapsedMillisOrMissing(start, passage);
+    }
+
+    private static long compactStart(long epochMillis) {
+        return StageTiming.compactUtc(Instant.ofEpochMilli(epochMillis));
     }
 
     private static int id(int number) {
