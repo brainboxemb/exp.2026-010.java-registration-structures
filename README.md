@@ -12,7 +12,7 @@ avoid unnecessary object churn, list copies and full-list rewrites.
 
 The branch now contains working experimental implementations of those structures:
 - `RegistrationList`: append-only primitive row arrays;
-- `RegistrationIndex`: primitive per-registrationId lookup/count/start metadata;
+- `RegistrationIndex`: primitive per-registrationId count/direct-row metadata;
 - `RegistrationMutations`: bounded primitive mutation ring;
 - interchangeable `RankingIndex` implementations.
 
