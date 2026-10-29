@@ -77,8 +77,18 @@ Default populations are **500, 1,000 and 5,000**. The diagnostic benchmark measu
 The benchmark reports median nanoseconds/operation, allocated thread bytes/operation
 when available, capacity and growth events.
 
-This is an early diagnostic benchmark, not yet a JMH result. Final architecture
-selection also requires repeated/forked measurements and Pi Zero qualification.
+The diagnostic benchmark is intentionally lightweight and noisy. A separate JMH profile now
+provides forked steady-state measurements:
+
+```sh
+mvn -B -Pjmh -DskipTests package
+java -jar target/benchmarks.jar -prof gc
+```
+
+JMH covers rank query/replace-roundtrip plus RegistrationList snapshot, direct-row sync,
+per-registration sync scan, mutation-batch read and start-change+sync roundtrip.
+
+Final architecture selection still requires Pi Zero qualification.
 
 ## Code reading order
 
@@ -103,6 +113,9 @@ RankingTest.java
 
 RegistrationListBenchmark.java
 RankingBenchmark.java
+
+src/jmh/.../RegistrationListJmhBenchmark.java
+src/jmh/.../RankingIndexJmhBenchmark.java
 ```
 
 The Raspberry Pi image is maintained separately. This experiment does not modify
