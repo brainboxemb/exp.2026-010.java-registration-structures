@@ -308,19 +308,19 @@ public final class RegistrationListBenchmark {
 
         for (int block = 0; block < 64; block++) {
             int baseId = (block * 7) % 496;
-            long[] duplicatePassages = new long[4];
 
             for (int i = 0; i < 4; i++) {
                 int idIndex = baseId + i;
                 long duplicatePassage =
                         passage(idIndex) + 1_000_000L + block * 10_000L + i;
-                duplicatePassages[i] = duplicatePassage;
                 list.add(++sequence, registrationId(idIndex), duplicatePassage);
             }
 
             for (int i = 0; i < 4; i++) {
                 int idIndex = baseId + i;
-                if (!list.revoke(++sequence, registrationId(idIndex), duplicatePassages[i]))
+                long duplicatePassage =
+                        passage(idIndex) + 1_000_000L + block * 10_000L + i;
+                if (!list.revoke(++sequence, registrationId(idIndex), duplicatePassage))
                     throw new IllegalStateException("mixed workload REV failed");
             }
 
